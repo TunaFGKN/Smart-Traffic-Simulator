@@ -220,29 +220,48 @@ class CityGraph {
     }
 
     private void initializeNodes() {
-        int startX = 150, startY = 100, gap = 140;
+        /*int startX = 150, startY = 100, gap = 140;
         for (int i = 1; i <= 18; i++) {
             int row = (i - 1) / 6;
             int col = (i - 1) % 6;
             addNode(i, "INTR" + i, NodeType.INTERSECTION, startX + col * gap, startY + row * gap);
-        }
-
+        }*/
+    	
+    	addNode(1, "INTR" + 1, NodeType.INTERSECTION, 465, 250);
+    	addNode(2, "INTR" + 2, NodeType.INTERSECTION, 675, 250);
+    	addNode(3, "INTR" + 3, NodeType.INTERSECTION, 885, 450);
+    	addNode(4, "INTR" + 4, NodeType.INTERSECTION, 675, 450);
+    	addNode(5, "INTR" + 5, NodeType.INTERSECTION, 570, 350);
+    	addNode(6, "INTR" + 6, NodeType.INTERSECTION, 465, 350);
+    	addNode(7, "INTR" + 7, NodeType.INTERSECTION, 360, 350);
+    	addNode(8, "INTR" + 8, NodeType.INTERSECTION, 360, 500);
+    	addNode(9, "INTR" + 9, NodeType.INTERSECTION, 675, 500);
+    	addNode(10, "INTR" + 10, NodeType.INTERSECTION, 255, 500);
+    	addNode(11, "INTR" + 11, NodeType.INTERSECTION, 150, 350);
+    	addNode(12, "INTR" + 12, NodeType.INTERSECTION, 150, 150);
+    	addNode(13, "INTR" + 13, NodeType.INTERSECTION, 255, 150);
+    	addNode(14, "INTR" + 14, NodeType.INTERSECTION, 360, 150);
+    	addNode(15, "INTR" + 15, NodeType.INTERSECTION, 465, 150);
+    	addNode(16, "INTR" + 16, NodeType.INTERSECTION, 465, 200);
+    	addNode(17, "INTR" + 17, NodeType.INTERSECTION, 360, 250);
+    	addNode(18, "INTR" + 18, NodeType.INTERSECTION, 255, 250);
+    	
         int[][] aptCoords = {
-            {50, 50}, {300, 50}, {550, 50}, {800, 50}, {950, 150},
-            {950, 300}, {950, 450}, {800, 600}, {550, 600}, {300, 600},
-            {50, 600}, {50, 400}, {50, 250}, {250, 200}, {650, 200}
+            {410, 250}, {920, 450}, {570, 300}, {300, 350}, {360, 550},
+            {675, 550}, {255, 550}, {150, 400}, {150, 100}, {255, 100},
+            {360, 100}, {465, 100}, {400, 200}, {385, 250}, {200, 250}
         };
         for (int i = 0; i < 15; i++) {
             addNode(51 + i, "APT" + (i + 1), NodeType.APARTMENT, aptCoords[i][0], aptCoords[i][1]);
         }
 
-        addNode(71, "P1", NodeType.PARKING, 250, 80);
-        addNode(72, "P2", NodeType.PARKING, 850, 450);
-        addNode(73, "P3", NodeType.PARKING, 450, 380);
+        addNode(71, "P1", NodeType.PARKING, 780, 250);
+        addNode(72, "P2", NodeType.PARKING, 255, 200);
+        addNode(73, "P3", NodeType.PARKING, 780, 500);
 
-        addNode(81, "POLICE", NodeType.POLICE, 700, 150);
-        addNode(82, "HOSP", NodeType.HOSPITAL, 800, 150);
-        addNode(83, "FIRE", NodeType.FIRE_STATION, 450, 150);
+        addNode(81, "POLICE", NodeType.POLICE, 465, 400);
+        addNode(82, "HOSP", NodeType.HOSPITAL, 255, 350);
+        addNode(83, "FIRE", NodeType.FIRE_STATION, 885, 400);
     }
 
     private void addNode(int id, String name, NodeType type, int x, int y) {
