@@ -551,9 +551,36 @@ class SimulationPanel extends JPanel {
 
      // Node'ları sıralayıp ekle
      List<Node> sortedNodes = new ArrayList<>(graph.nodes.values());
-     sortedNodes.sort(Comparator.comparing(n -> n.name));
+     sortedNodes.sort((n1, n2) -> {
+
+         // 1. KATEGORİ ÖNCELİĞİNE BAK
+         int p1 = getNodePriority(n1.name);
+         int p2 = getNodePriority(n2.name);
+
+         if (p1 != p2) {
+             return Integer.compare(p1, p2);
+         }
+
+         // 2. KATEGORİ AYNIYSA DOĞAL SIRALAMA (Natural Sort)
+         String prefix1 = n1.name.replaceAll("[0-9]", "");
+         String prefix2 = n2.name.replaceAll("[0-9]", "");
+
+         int prefixCompare = prefix1.compareTo(prefix2);
+         if (prefixCompare != 0) return prefixCompare;
+
+         String numStr1 = n1.name.replaceAll("[^0-9]", "");
+         String numStr2 = n2.name.replaceAll("[^0-9]", "");
+
+         if (numStr1.isEmpty() && numStr2.isEmpty()) return n1.name.compareTo(n2.name);
+         if (numStr1.isEmpty()) return -1;
+         if (numStr2.isEmpty()) return 1;
+
+         return Integer.compare(Integer.parseInt(numStr1), Integer.parseInt(numStr2));
+     });
+     // ----------------------------------
 
      for(Node n : sortedNodes) {
+         if(n.type == NodeType.INTERSECTION) {continue;}
          startBox.addItem(n);
          endBox.addItem(n);
      }
@@ -609,6 +636,22 @@ class SimulationPanel extends JPanel {
      revalidate();
      repaint();
  }
+ 
+//--- SIRALAMA İÇİN YARDIMCI METOT ---
+ private int getNodePriority(String name) {
+     // 1. Grup: Apartmanlar (APT...)
+     if (name.startsWith("APT")) return 1;
+
+     // 2. Grup: Kamu Binaları (HOSP, FIRE, POLICE)
+     if (name.equals("HOSP") || name.equals("POLICE") || name.equals("FIRE")) return 2;
+
+     // 3. Grup: Otoparklar (P1, P2...) - HOSP'tan sonra gelir
+     if (name.startsWith("P") && name.matches("P\\d+")) return 3;
+
+     // Diğerleri en sona
+     return 4;
+ }
+ // ---------------------------------------
 
  // Ana repaint çağrıldığında haritayı da tetikler
  @Override
