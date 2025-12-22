@@ -13,7 +13,7 @@ public class SmartCityTraffic extends JFrame {
 
     public SmartCityTraffic() {
         setTitle("Smart City Traffic Control System");
-        setSize(1500, 1000);
+        setSize(1280, 960);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -574,11 +574,41 @@ class SimulationPanel extends JPanel {
         }
     }
 
+ // --- DEĞİŞİKLİK 2: SimulationPanel Sınıfı ---
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // --- YENİ EKLENEN SCALE MANTIĞI BAŞLANGICI ---
+        
+        // Haritanın sığması gereken sanal alan (Senin koordinatlarına göre max değerler)
+        // Max X yaklaşık 1150, Max Y yaklaşık 840 idi. Biraz pay bırakıyoruz.
+        double virtualWidth = 1250.0;
+        double virtualHeight = 900.0;
+
+        // Mevcut panel boyutu
+        double panelWidth = getWidth();
+        double panelHeight = getHeight();
+
+        // Oranları hesapla
+        double scaleX = panelWidth / virtualWidth;
+        double scaleY = panelHeight / virtualHeight;
+
+        // En küçük oranı seç (En boy oranını korumak için - Aspect Ratio)
+        double scale = Math.min(scaleX, scaleY);
+
+        // Haritayı ekranın ortasına hizalamak için kaydırma miktarı
+        double translateX = (panelWidth - (virtualWidth * scale)) / 2;
+        double translateY = (panelHeight - (virtualHeight * scale)) / 2;
+
+        // Dönüşümü uygula
+        g2.translate(translateX, translateY);
+        g2.scale(scale, scale);
+        
+        // --- SCALE MANTIĞI BİTİŞİ ---
 
         // Yolları Çiz
         g2.setColor(new Color(80, 80, 80));
@@ -595,7 +625,7 @@ class SimulationPanel extends JPanel {
             }
         }
 
-        // Node'ları Çiz
+        // Node'ları Çiz (Senin kodunla aynı)
         for (Node n : graph.nodes.values()) {
             switch (n.type) {
                 case INTERSECTION:
@@ -608,11 +638,10 @@ class SimulationPanel extends JPanel {
                     g2.setColor(new Color(200, 100, 0));
                     if(n.id==54) {
                         g2.fillRect(n.x - 30, n.y - 8, 15, 15);
-                        break;
                     }else{
                         g2.fillRect(n.x - 8, n.y - 8, 15, 15);
-                        break;
                     }
+                    break; // BURAYA BREAK EKLEMEYİ UNUTMA (Senin kodda eksikti switch fall-through yapıyordu)
                 case PARKING:
                     g2.setColor(new Color(200, 50, 150));
                     g2.fillRect(n.x - 12, n.y - 8, 25, 15);
@@ -623,11 +652,11 @@ class SimulationPanel extends JPanel {
                     break;
             }
             g2.setColor(Color.LIGHT_GRAY);
-            g2.setFont(new Font("SansSerif", Font.PLAIN, 10));
+            g2.setFont(new Font("SansSerif", Font.PLAIN, 12)); // Fontu biraz büyüttük scale olunca okunabilsin diye
             g2.drawString(n.name, n.x + 14, n.y + 5);
         }
 
-        // Araçları Çiz
+        // Araçları Çiz (Araç boyutlarını biraz büyüttük çünkü scale küçültüyor)
         for (Vehicle v : engine.vehicles) {
             if (v.next == null) continue;
 
@@ -644,26 +673,28 @@ class SimulationPanel extends JPanel {
             else if (v.type == VehicleType.BUS) vehicleColor = Color.CYAN;
             else vehicleColor = Color.RED;
 
-            int vWidth = 10;
-            int vHeight = 12;
+            // SCALE İÇİN BOYUT AYARI:
+            // Harita küçüldüğünde araçlar nokta gibi kalmasın diye boyutları artırdık.
+            int vWidth = 20;  // 10 -> 20
+            int vHeight = 14; // 12 -> 14
 
             g2.setColor(vehicleColor);
             g2.fillRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
 
-            g2.setColor(Color.BLACK); //??
+            g2.setColor(Color.BLACK); 
             g2.setStroke(new BasicStroke(1));
             g2.drawRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
 
             g2.setFont(new Font("Arial", Font.BOLD, 10));
             FontMetrics fm = g2.getFontMetrics();
             int idWidth = fm.stringWidth(v.id);
-            g2.drawString(v.id, drawX - idWidth/2, drawY + 4);
+            g2.drawString(v.id, drawX - idWidth/2, drawY - 8); // Yazıyı aracın üstüne aldık
 
-            g2.setFont(new Font("Arial", Font.PLAIN, 9));
+            g2.setFont(new Font("Arial", Font.PLAIN, 10)); // Font biraz büyütüldü
             g2.setColor(Color.WHITE);
             String destText = "> " + v.destination.name;
             int destWidth = fm.stringWidth(destText);
-            g2.drawString(destText, drawX - destWidth/2, drawY + vHeight + 5);
+            g2.drawString(destText, drawX - destWidth/2, drawY + vHeight + 10);
         }
     }
 }
