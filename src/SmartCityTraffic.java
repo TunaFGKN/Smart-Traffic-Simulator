@@ -516,11 +516,19 @@ class SimulationPanel extends JPanel {
         controlPanel.setVisible(false);
         controlPanel.setBackground(new Color(50, 50, 50));
 
+        // Footer bar padding:
+        controlPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 20, 15));
+        controlPanel.setPreferredSize(new Dimension(0, 60));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(0, 10, 0, 10);
+        
         startBox = new JComboBox<>();
         endBox = new JComboBox<>();
         statusLabel = new JLabel("Ready");
         statusLabel.setForeground(Color.GREEN); //Yellow prev
-
+        statusLabel.setFont(new Font("Arial", Font.BOLD, 14)); // Yazıyı biraz büyüttük
+        
         List<Node> sortedNodes = new ArrayList<>(graph.nodes.values());
         sortedNodes.sort(Comparator.comparing(n -> n.name));
 
@@ -532,6 +540,7 @@ class SimulationPanel extends JPanel {
         JButton goBtn = new JButton("Start Journey");
         goBtn.setBackground(new Color(0, 150, 0));
         goBtn.setForeground(Color.darkGray); //WHITE prev
+        goBtn.setFocusPainted(false);
 
         goBtn.addActionListener(e -> {
             Node s = (Node) startBox.getSelectedItem();
@@ -555,12 +564,13 @@ class SimulationPanel extends JPanel {
         JLabel lblS = new JLabel("Start:"); lblS.setForeground(Color.WHITE);
         JLabel lblE = new JLabel("End:"); lblE.setForeground(Color.WHITE);
 
-        controlPanel.add(lblS);
-        controlPanel.add(startBox);
-        controlPanel.add(lblE);
-        controlPanel.add(endBox);
-        controlPanel.add(goBtn);
-        controlPanel.add(statusLabel);
+        controlPanel.add(lblS, gbc);
+        controlPanel.add(startBox, gbc);
+        controlPanel.add(lblE, gbc);
+        controlPanel.add(endBox, gbc);
+        controlPanel.add(goBtn, gbc);
+        gbc.insets = new Insets(0, 30, 0, 0);
+        controlPanel.add(statusLabel, gbc);
 
         add(controlPanel, BorderLayout.SOUTH);
     }
@@ -591,7 +601,8 @@ class SimulationPanel extends JPanel {
 
         // Mevcut panel boyutu
         double panelWidth = getWidth();
-        double panelHeight = getHeight();
+        double bottomBarHeight = controlPanel.isVisible() ? controlPanel.getHeight() : 0;
+        double panelHeight = getHeight() - bottomBarHeight;
 
         // Oranları hesapla
         double scaleX = panelWidth / virtualWidth;
