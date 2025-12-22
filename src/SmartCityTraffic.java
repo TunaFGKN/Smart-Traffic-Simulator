@@ -499,213 +499,233 @@ class SimulationEngine extends Thread {
 
 // --- GÖRSELLEŞTİRME PANELİ ---
 
+//--- GÖRSELLEŞTİRME PANELİ ---
+
 class SimulationPanel extends JPanel {
-    CityGraph graph;
-    SimulationEngine engine;
-    JPanel controlPanel;
-    JComboBox<Node> startBox, endBox;
-    JLabel statusLabel;
+ private CityGraph graph;
+ private SimulationEngine engine;
+ 
+ // Panelleri ayırıyoruz
+ private JPanel controlPanel; // Alt bar
+ private MapPanel mapPanel;   // Harita çizim alanı (Inner Class)
+ 
+ // Kontrol elemanları
+ private JComboBox<Node> startBox, endBox;
+ private JLabel statusLabel;
 
-    public SimulationPanel(CityGraph graph, SimulationEngine engine) {
-        this.graph = graph;
-        this.engine = engine;
-        setLayout(new BorderLayout());
-        setBackground(new Color(30, 30, 30));
+ public SimulationPanel(CityGraph graph, SimulationEngine engine) {
+     this.graph = graph;
+     this.engine = engine;
+     
+     // 1. Ana Panel Ayarları
+     setLayout(new BorderLayout()); // Ekrana yayıl
+     
+     // 2. Alt Kontrol Paneli (Control Panel) Oluşturma
+     initControlPanel();
+     
+     // 3. Harita Paneli (Map Panel) Oluşturma
+     mapPanel = new MapPanel();
+     
+     // 4. Yerleşim (Layout)
+     add(mapPanel, BorderLayout.CENTER); // Harita ortada kalan her yeri kaplar
+     add(controlPanel, BorderLayout.SOUTH); // Kontrol paneli en alta yapışır
+ }
 
-        controlPanel = new JPanel();
-        controlPanel.setVisible(false);
-        controlPanel.setBackground(new Color(50, 50, 50));
+ private void initControlPanel() {
+     controlPanel = new JPanel();
+     controlPanel.setBackground(new Color(50, 50, 50));
+     
+     // GridBagLayout ile öğeleri tam ortalıyoruz
+     controlPanel.setLayout(new GridBagLayout());
+     // Yükseklik 60px sabit, Genişlik esnek (0)
+     controlPanel.setPreferredSize(new Dimension(0, 60));
 
-        // Footer bar padding:
-        controlPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 20, 15));
-        controlPanel.setPreferredSize(new Dimension(0, 60));
-        
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(0, 10, 0, 10);
-        
-        startBox = new JComboBox<>();
-        endBox = new JComboBox<>();
-        statusLabel = new JLabel("Ready");
-        statusLabel.setForeground(Color.GREEN); //Yellow prev
-        statusLabel.setFont(new Font("Arial", Font.BOLD, 14)); // Yazıyı biraz büyüttük
-        
-        List<Node> sortedNodes = new ArrayList<>(graph.nodes.values());
-        sortedNodes.sort(Comparator.comparing(n -> n.name));
+     GridBagConstraints gbc = new GridBagConstraints();
+     gbc.insets = new Insets(0, 10, 0, 10); // Elemanlar arası boşluk
 
-        for(Node n : sortedNodes) {
-            startBox.addItem(n);
-            endBox.addItem(n);
-        }
+     startBox = new JComboBox<>();
+     endBox = new JComboBox<>();
+     statusLabel = new JLabel("Ready");
+     statusLabel.setForeground(Color.GREEN);
+     statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
 
-        JButton goBtn = new JButton("Start Journey");
-        goBtn.setBackground(new Color(0, 150, 0));
-        goBtn.setForeground(Color.darkGray); //WHITE prev
-        goBtn.setFocusPainted(false);
+     // Node'ları sıralayıp ekle
+     List<Node> sortedNodes = new ArrayList<>(graph.nodes.values());
+     sortedNodes.sort(Comparator.comparing(n -> n.name));
 
-        goBtn.addActionListener(e -> {
-            Node s = (Node) startBox.getSelectedItem();
-            Node d = (Node) endBox.getSelectedItem();
-            VehicleType type = VehicleType.CAR;
+     for(Node n : sortedNodes) {
+         startBox.addItem(n);
+         endBox.addItem(n);
+     }
 
-            if ("EMERGENCY".equals(engine.currentUserRole)) {
-                type = VehicleType.AMBULANCE;
-            }
+     JButton goBtn = new JButton("Start Journey");
+     goBtn.setBackground(new Color(0, 150, 0));
+     goBtn.setForeground(Color.darkGray);
+     goBtn.setFocusPainted(false);
+     goBtn.setFont(new Font("Arial", Font.BOLD, 12));
 
-            boolean spawned = engine.spawnVehicle(s, d, type);
-            if(spawned) {
-                statusLabel.setText("Vehicle Spawned: " + s.name + " -> " + d.name);
-                statusLabel.setForeground(Color.GREEN);
-            } else {
-                statusLabel.setText("NO PATH FOUND from " + s.name + " to " + d.name);
-                statusLabel.setForeground(Color.RED);
-            }
-        });
+     goBtn.addActionListener(e -> {
+         Node s = (Node) startBox.getSelectedItem();
+         Node d = (Node) endBox.getSelectedItem();
+         VehicleType type = VehicleType.CAR;
 
-        JLabel lblS = new JLabel("Start:"); lblS.setForeground(Color.WHITE);
-        JLabel lblE = new JLabel("End:"); lblE.setForeground(Color.WHITE);
+         if ("EMERGENCY".equals(engine.currentUserRole)) {
+             type = VehicleType.AMBULANCE;
+         }
 
-        controlPanel.add(lblS, gbc);
-        controlPanel.add(startBox, gbc);
-        controlPanel.add(lblE, gbc);
-        controlPanel.add(endBox, gbc);
-        controlPanel.add(goBtn, gbc);
-        gbc.insets = new Insets(0, 30, 0, 0);
-        controlPanel.add(statusLabel, gbc);
+         boolean spawned = engine.spawnVehicle(s, d, type);
+         if(spawned) {
+             statusLabel.setText("Vehicle Spawned: " + s.name + " -> " + d.name);
+             statusLabel.setForeground(Color.GREEN);
+         } else {
+             statusLabel.setText("NO PATH FOUND from " + s.name + " to " + d.name);
+             statusLabel.setForeground(Color.RED);
+         }
+     });
 
-        add(controlPanel, BorderLayout.SOUTH);
-    }
+     JLabel lblS = new JLabel("Start:"); lblS.setForeground(Color.WHITE);
+     JLabel lblE = new JLabel("End:"); lblE.setForeground(Color.WHITE);
 
-    public void enableControls(String role) {
-        controlPanel.setVisible(true);
-        if (role.equals("BUS_DRIVER") || role.equals("FREE_VIEW")) {
-            startBox.setEnabled(false);
-            endBox.setEnabled(false);
-            statusLabel.setText("Monitoring Mode: " + role);
-        }
-    }
+     // Elemanları ekle
+     controlPanel.add(lblS, gbc);
+     controlPanel.add(startBox, gbc);
+     controlPanel.add(lblE, gbc);
+     controlPanel.add(endBox, gbc);
+     controlPanel.add(goBtn, gbc);
+     
+     gbc.insets = new Insets(0, 30, 0, 0); // Status için ekstra boşluk
+     controlPanel.add(statusLabel, gbc);
+ }
 
- // --- DEĞİŞİKLİK 2: SimulationPanel Sınıfı ---
+ public void enableControls(String role) {
+     // Ana panel içinde kontrol panelini görünür yapıyoruz
+     controlPanel.setVisible(true);
+     if (role.equals("BUS_DRIVER") || role.equals("FREE_VIEW")) {
+         startBox.setEnabled(false);
+         endBox.setEnabled(false);
+         statusLabel.setText("Monitoring Mode: " + role);
+     }
+     // Paneli yeniden çiz ki layout güncellensin
+     revalidate();
+     repaint();
+ }
 
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        Graphics2D g2 = (Graphics2D) g;
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+ // Ana repaint çağrıldığında haritayı da tetikler
+ @Override
+ public void repaint() {
+     super.repaint();
+     if(mapPanel != null) mapPanel.repaint();
+ }
 
-        // --- YENİ EKLENEN SCALE MANTIĞI BAŞLANGICI ---
-        
-        // Haritanın sığması gereken sanal alan (Senin koordinatlarına göre max değerler)
-        // Max X yaklaşık 1150, Max Y yaklaşık 840 idi. Biraz pay bırakıyoruz.
-        double virtualWidth = 1250.0;
-        double virtualHeight = 900.0;
+ // --- HARİTA ÇİZİM PANELİ (INNER CLASS) ---
+ // Bu sınıf sadece haritayı çizer, butonlarla işi yoktur.
+ private class MapPanel extends JPanel {
+     
+     public MapPanel() {
+         setBackground(new Color(30, 30, 30));
+     }
 
-        // Mevcut panel boyutu
-        double panelWidth = getWidth();
-        double bottomBarHeight = controlPanel.isVisible() ? controlPanel.getHeight() : 0;
-        double panelHeight = getHeight() - bottomBarHeight;
+     @Override
+     protected void paintComponent(Graphics g) {
+         super.paintComponent(g);
+         Graphics2D g2 = (Graphics2D) g;
+         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Oranları hesapla
-        double scaleX = panelWidth / virtualWidth;
-        double scaleY = panelHeight / virtualHeight;
+         // --- SCALE MANTIĞI ---
+         double virtualWidth = 1250.0;
+         double virtualHeight = 900.0;
 
-        // En küçük oranı seç (En boy oranını korumak için - Aspect Ratio)
-        double scale = Math.min(scaleX, scaleY);
+         // Artık alt barı çıkarmamıza gerek yok çünkü bu panel (MapPanel)
+         // zaten CENTER'da duruyor ve alt barın alanına karışmıyor.
+         // Kendisine ayrılan alanın tamamını kullanabilir.
+         double panelWidth = getWidth();
+         double panelHeight = getHeight();
 
-        // Haritayı ekranın ortasına hizalamak için kaydırma miktarı
-        double translateX = (panelWidth - (virtualWidth * scale)) / 2;
-        double translateY = (panelHeight - (virtualHeight * scale)) / 2;
+         double scaleX = panelWidth / virtualWidth;
+         double scaleY = panelHeight / virtualHeight;
+         double scale = Math.min(scaleX, scaleY);
 
-        // Dönüşümü uygula
-        g2.translate(translateX, translateY);
-        g2.scale(scale, scale);
-        
-        // --- SCALE MANTIĞI BİTİŞİ ---
+         double translateX = (panelWidth - (virtualWidth * scale)) / 2;
+         double translateY = (panelHeight - (virtualHeight * scale)) / 2;
 
-        // Yolları Çiz
-        g2.setColor(new Color(80, 80, 80));
-        g2.setStroke(new BasicStroke(4));
-        for (int id : graph.adjList.keySet()) {
-            Node n1 = graph.nodes.get(id);
-            for (Edge e : graph.adjList.get(id)) {
-                Node n2 = e.target;
-                g2.drawLine(n1.x, n1.y, n2.x, n2.y);
+         g2.translate(translateX, translateY);
+         g2.scale(scale, scale);
+         
+         // --- ÇİZİM ---
+         
+         // Yollar
+         g2.setColor(new Color(80, 80, 80));
+         g2.setStroke(new BasicStroke(4));
+         for (int id : graph.adjList.keySet()) {
+             Node n1 = graph.nodes.get(id);
+             for (Edge e : graph.adjList.get(id)) {
+                 Node n2 = e.target;
+                 g2.drawLine(n1.x, n1.y, n2.x, n2.y);
+                 int midX = (n1.x + n2.x) / 2;
+                 int midY = (n1.y + n2.y) / 2;
+                 g2.fillOval(midX-2, midY-2, 4, 4);
+             }
+         }
 
-                int midX = (n1.x + n2.x) / 2;
-                int midY = (n1.y + n2.y) / 2;
-                g2.fillOval(midX-2, midY-2, 4, 4);
-            }
-        }
+         // Node'lar
+         for (Node n : graph.nodes.values()) {
+             switch (n.type) {
+                 case INTERSECTION:
+                     g2.setColor(new Color(0, 100, 200));
+                     g2.fillOval(n.x - 12, n.y - 12, 24, 24);
+                     if(n.trafficLight.northSouthGreen) g2.setColor(Color.GREEN); else g2.setColor(Color.RED);
+                     g2.fillOval(n.x - 4, n.y - 4, 8, 8);
+                     break;
+                 case APARTMENT:
+                     g2.setColor(new Color(200, 100, 0));
+                     if(n.id==54) g2.fillRect(n.x - 30, n.y - 8, 15, 15);
+                     else g2.fillRect(n.x - 8, n.y - 8, 15, 15);
+                     break;
+                 case PARKING:
+                     g2.setColor(new Color(200, 50, 150));
+                     g2.fillRect(n.x - 12, n.y - 8, 25, 15);
+                     break;
+                 case POLICE: case HOSPITAL: case FIRE_STATION:
+                     g2.setColor(new Color(50, 180, 50));
+                     g2.fillRect(n.x - 12, n.y - 12, 25, 25);
+                     break;
+             }
+             g2.setColor(Color.LIGHT_GRAY);
+             g2.setFont(new Font("SansSerif", Font.PLAIN, 12));
+             g2.drawString(n.name, n.x + 14, n.y + 5);
+         }
 
-        // Node'ları Çiz (Senin kodunla aynı)
-        for (Node n : graph.nodes.values()) {
-            switch (n.type) {
-                case INTERSECTION:
-                    g2.setColor(new Color(0, 100, 200));
-                    g2.fillOval(n.x - 12, n.y - 12, 24, 24);
-                    if(n.trafficLight.northSouthGreen) g2.setColor(Color.GREEN); else g2.setColor(Color.RED);
-                    g2.fillOval(n.x - 4, n.y - 4, 8, 8);
-                    break;
-                case APARTMENT:
-                    g2.setColor(new Color(200, 100, 0));
-                    if(n.id==54) {
-                        g2.fillRect(n.x - 30, n.y - 8, 15, 15);
-                    }else{
-                        g2.fillRect(n.x - 8, n.y - 8, 15, 15);
-                    }
-                    break; // BURAYA BREAK EKLEMEYİ UNUTMA (Senin kodda eksikti switch fall-through yapıyordu)
-                case PARKING:
-                    g2.setColor(new Color(200, 50, 150));
-                    g2.fillRect(n.x - 12, n.y - 8, 25, 15);
-                    break;
-                case POLICE: case HOSPITAL: case FIRE_STATION:
-                    g2.setColor(new Color(50, 180, 50));
-                    g2.fillRect(n.x - 12, n.y - 12, 25, 25);
-                    break;
-            }
-            g2.setColor(Color.LIGHT_GRAY);
-            g2.setFont(new Font("SansSerif", Font.PLAIN, 12)); // Fontu biraz büyüttük scale olunca okunabilsin diye
-            g2.drawString(n.name, n.x + 14, n.y + 5);
-        }
+         // Araçlar
+         for (Vehicle v : engine.vehicles) {
+             if (v.next == null) continue;
+             int curX = v.current.x; int curY = v.current.y;
+             int nextX = v.next.x; int nextY = v.next.y;
+             int drawX = (int) (curX + (nextX - curX) * v.progress);
+             int drawY = (int) (curY + (nextY - curY) * v.progress);
 
-        // Araçları Çiz (Araç boyutlarını biraz büyüttük çünkü scale küçültüyor)
-        for (Vehicle v : engine.vehicles) {
-            if (v.next == null) continue;
+             Color vehicleColor;
+             if (v.type == VehicleType.CAR) vehicleColor = Color.YELLOW;
+             else if (v.type == VehicleType.BUS) vehicleColor = Color.CYAN;
+             else vehicleColor = Color.RED;
 
-            int curX = v.current.x;
-            int curY = v.current.y;
-            int nextX = v.next.x;
-            int nextY = v.next.y;
+             int vWidth = 20; int vHeight = 14;
+             g2.setColor(vehicleColor);
+             g2.fillRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
+             g2.setColor(Color.BLACK);
+             g2.setStroke(new BasicStroke(1));
+             g2.drawRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
 
-            int drawX = (int) (curX + (nextX - curX) * v.progress);
-            int drawY = (int) (curY + (nextY - curY) * v.progress);
+             g2.setFont(new Font("Arial", Font.BOLD, 10));
+             FontMetrics fm = g2.getFontMetrics();
+             int idWidth = fm.stringWidth(v.id);
+             g2.drawString(v.id, drawX - idWidth/2, drawY - 8);
 
-            Color vehicleColor;
-            if (v.type == VehicleType.CAR) vehicleColor = Color.YELLOW;
-            else if (v.type == VehicleType.BUS) vehicleColor = Color.CYAN;
-            else vehicleColor = Color.RED;
-
-            // SCALE İÇİN BOYUT AYARI:
-            // Harita küçüldüğünde araçlar nokta gibi kalmasın diye boyutları artırdık.
-            int vWidth = 20;  // 10 -> 20
-            int vHeight = 14; // 12 -> 14
-
-            g2.setColor(vehicleColor);
-            g2.fillRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
-
-            g2.setColor(Color.BLACK); 
-            g2.setStroke(new BasicStroke(1));
-            g2.drawRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
-
-            g2.setFont(new Font("Arial", Font.BOLD, 10));
-            FontMetrics fm = g2.getFontMetrics();
-            int idWidth = fm.stringWidth(v.id);
-            g2.drawString(v.id, drawX - idWidth/2, drawY - 8); // Yazıyı aracın üstüne aldık
-
-            g2.setFont(new Font("Arial", Font.PLAIN, 10)); // Font biraz büyütüldü
-            g2.setColor(Color.WHITE);
-            String destText = "> " + v.destination.name;
-            int destWidth = fm.stringWidth(destText);
-            g2.drawString(destText, drawX - destWidth/2, drawY + vHeight + 10);
-        }
-    }
+             g2.setFont(new Font("Arial", Font.PLAIN, 10));
+             g2.setColor(Color.WHITE);
+             String destText = "> " + v.destination.name;
+             int destWidth = fm.stringWidth(destText);
+             g2.drawString(destText, drawX - destWidth/2, drawY + vHeight + 10);
+         }
+     }
+ }
 }
