@@ -13,7 +13,7 @@ public class SmartCityTraffic extends JFrame {
 
     public SmartCityTraffic() {
         setTitle("Smart City Traffic Control System");
-        setSize(1280, 960);
+        setSize(1280, 800);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -200,12 +200,19 @@ class Vehicle {
     List<Node> path;
     double progress = 0;
 
+    int currentPathIndex = 0;
+
+    // YENİ: Ambulansın geri dönüş yolunda olup olmadığını tutar
+    boolean isReturning = false;
+
     public Vehicle(String id, VehicleType type, Node start, Node dest, List<Node> path) {
         this.id = id;
         this.type = type;
         this.current = start;
         this.destination = dest;
         this.path = path;
+        this.currentPathIndex = 0;
+        this.isReturning = false; // Varsayılan false
         if (path.size() > 1) this.next = path.get(1);
     }
 }
@@ -249,7 +256,7 @@ class CityGraph {
         addNode(18, "INTR" + 18, NodeType.INTERSECTION, 270, 360);
 
         int[][] aptCoords = {
-                {100, 50}, {100, 500}, {270, 50}, {265, 360}, {270, 840},
+                {100, 50}, {100, 500}, {270, 50}, {220, 360}, {270, 840},
                 {410, 50}, {460, 360}, {360, 450}, {410, 840}, {560, 50},
                 {510, 210}, {510, 360}, {720, 400}, {830, 840}, {1150, 640}
                 /* 12(51), 11(52), 13(53), 18(54), 10(55),
@@ -332,6 +339,7 @@ class CityGraph {
         //POLICE-HOSPITAL-FIRE_STATION
         addEdge(81, 6, 0.5);
         addEdge(82, 10, 3.4);
+        addEdge(82, 11, 1.7);
         addEdge(83, 3, 0.5);
     }
 }
@@ -368,39 +376,40 @@ class SimulationEngine extends Thread {
     public List<Node> findPath(Node start, Node end) {
         Map<Integer, Double> distances = new HashMap<>();
         Map<Integer, Node> previous = new HashMap<>();
+        Set<Integer> visited = new HashSet<>();
 
-        // --- FIX: Comparator DÜZELTİLDİ ---
-        // Eski hatalı kod: Comparator.comparingDouble(distances::get)
-        // Yeni doğru kod: n -> distances.get(n.id)
-        PriorityQueue<Node> queue = new PriorityQueue<>(Comparator.comparingDouble(n -> distances.get(n.id)));
+        PriorityQueue<PQNode> queue = new PriorityQueue<>();
 
         for (int id : graph.nodes.keySet()) {
             distances.put(id, Double.MAX_VALUE);
         }
         distances.put(start.id, 0.0);
-        queue.add(start);
+        queue.add(new PQNode(start, 0.0));
 
         while (!queue.isEmpty()) {
-            Node current = queue.poll();
-            if (current == end) break;
+            PQNode currentPQ = queue.poll();
+            Node current = currentPQ.node;
 
-            if (distances.get(current.id) == Double.MAX_VALUE) break;
+            if (visited.contains(current.id)) continue;
+            visited.add(current.id);
+
+            if (current == end) break;
+            if (currentPQ.cost > distances.get(current.id)) continue;
 
             for (Edge edge : graph.adjList.get(current.id)) {
                 double newDist = distances.get(current.id) + edge.getCurrentWeight();
                 if (newDist < distances.get(edge.target.id)) {
                     distances.put(edge.target.id, newDist);
                     previous.put(edge.target.id, current);
-
-                    // PriorityQueue'yu güncellemek için silip ekliyoruz (Java PQ için basit çözüm)
-                    queue.remove(edge.target);
-                    queue.add(edge.target);
+                    queue.add(new PQNode(edge.target, newDist));
                 }
             }
         }
 
         List<Node> path = new ArrayList<>();
         Node curr = end;
+        if (distances.get(end.id) == Double.MAX_VALUE) return null;
+
         while (curr != null) {
             path.add(0, curr);
             curr = previous.get(curr.id);
@@ -409,6 +418,13 @@ class SimulationEngine extends Thread {
         if (path.isEmpty() || path.get(0) != start) return null;
 
         return path;
+    }
+
+    private static class PQNode implements Comparable<PQNode> {
+        Node node;
+        double cost;
+        public PQNode(Node node, double cost) { this.node = node; this.cost = cost; }
+        @Override public int compareTo(PQNode o) { return Double.compare(this.cost, o.cost); }
     }
 
     public boolean spawnVehicle(Node start, Node end, VehicleType type) {
@@ -422,19 +438,33 @@ class SimulationEngine extends Thread {
         return false;
     }
 
-
-    //Just 1 bus?
     private void spawnBusRoute(String driverId) {
-        List<Node> route = new ArrayList<>();
-        int[] ids = {73, 9, 8, 10, 82, 11, 12, 13, 14, 17, 7, 8, 9, 73};
-        for(int id : ids) {
-            if(graph.nodes.containsKey(id)) route.add(graph.nodes.get(id));
-        }
+        int[] ids1 = {71, 2, 16, 15, 14, 17, 7, 8, 9, 4, 3, 4, 2, 71};
+        int[] ids2 = {72, 18, 17, 14, 15, 16, 1, 6, 5, 4, 9, 8, 7, 17, 18, 72};
+        int[] ids3 = {73, 9, 8, 10, 82, 11, 12, 13, 14, 17, 7, 8, 9, 73};
 
-        if(!route.isEmpty()) {
-            Vehicle v = new Vehicle("BUS-" + driverId, VehicleType.BUS, route.get(0), route.get(route.size()-1), route);
-            vehicles.add(v);
-        }
+        List<Node> route1 = new ArrayList<>(); for (int id : ids1) route1.add(graph.nodes.get(id));
+        List<Node> route2 = new ArrayList<>(); for (int id : ids2) route2.add(graph.nodes.get(id));
+        List<Node> route3 = new ArrayList<>(); for (int id : ids3) route3.add(graph.nodes.get(id));
+
+        vehicles.add(new Vehicle("BUS-1A", VehicleType.BUS, route1.get(0), route1.get(route1.size()-1), route1));
+        vehicles.add(new Vehicle("BUS-2A", VehicleType.BUS, route2.get(0), route2.get(route2.size()-1), route2));
+        vehicles.add(new Vehicle("BUS-3A", VehicleType.BUS, route3.get(0), route3.get(route3.size()-1), route3));
+
+        new Thread(() -> {
+            try {
+                Thread.sleep(15000);
+
+                List<Node> route1_2 = new ArrayList<>(); for (int id : ids1) route1_2.add(graph.nodes.get(id));
+                List<Node> route2_2 = new ArrayList<>(); for (int id : ids2) route2_2.add(graph.nodes.get(id));
+                List<Node> route3_2 = new ArrayList<>(); for (int id : ids3) route3_2.add(graph.nodes.get(id));
+
+                vehicles.add(new Vehicle("BUS-1B", VehicleType.BUS, route1_2.get(0), route1_2.get(route1_2.size()-1), route1_2));
+                vehicles.add(new Vehicle("BUS-2B", VehicleType.BUS, route2_2.get(0), route2_2.get(route2_2.size()-1), route2_2));
+                vehicles.add(new Vehicle("BUS-3B", VehicleType.BUS, route3_2.get(0), route3_2.get(route3_2.size()-1), route3_2));
+
+            } catch (InterruptedException e) { e.printStackTrace(); }
+        }).start();
     }
 
     @Override
@@ -445,16 +475,13 @@ class SimulationEngine extends Thread {
                     moveVehicle(v);
                 }
                 updateLights();
-
                 if (panel != null) panel.repaint();
-
                 Thread.sleep(50);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            } catch (InterruptedException e) { e.printStackTrace(); }
         }
     }
 
+    // --- ÖNEMLİ DEĞİŞİKLİK BURADA ---
     private void moveVehicle(Vehicle v) {
         if (v.path.isEmpty() || v.next == null) return;
 
@@ -462,7 +489,7 @@ class SimulationEngine extends Thread {
             TrafficLight light = v.current.trafficLight;
             boolean isEmergency = (v.type == VehicleType.AMBULANCE || v.type == VehicleType.POLICE_CAR || v.type == VehicleType.FIRE_TRUCK);
 
-            int curIdx = v.path.indexOf(v.current);
+            int curIdx = v.currentPathIndex;
             Node prevNode = (curIdx > 0) ? v.path.get(curIdx - 1) : v.current;
 
             if (!isEmergency && !light.canPass(prevNode, v.next)) {
@@ -470,18 +497,52 @@ class SimulationEngine extends Thread {
             }
         }
 
-        //0.005
-        v.progress += 0.05;
+        v.progress += 0.025;
 
         if (v.progress >= 1.0) {
             v.progress = 0;
-            v.current = v.next;
-            int nextIdx = v.path.indexOf(v.current) + 1;
-            if (nextIdx < v.path.size()) {
-                v.next = v.path.get(nextIdx);
+            v.currentPathIndex++;
+
+            // Rota Sonuna Gelindi mi?
+            if (v.currentPathIndex >= v.path.size() - 1) {
+
+                // DURUM 1: OTOBÜS İSE BAŞA SAR
+                if (v.type == VehicleType.BUS) {
+                    v.currentPathIndex = 0;
+                    v.current = v.path.get(0);
+                    v.next = v.path.get(1);
+                }
+                // DURUM 2: AMBULANS VE HENÜZ DÖNMÜYORSA -> GERİ DÖNÜŞ BAŞLAT
+                else if (v.type == VehicleType.AMBULANCE && !v.isReturning) {
+                    Node currentLocation = v.path.get(v.path.size()-1); // Şu anki yer
+                    Node originalBase = v.path.get(0); // İlk başladığı yer (Hastane)
+
+                    // Geri dönüş rotası hesapla
+                    List<Node> returnPath = findPath(currentLocation, originalBase);
+
+                    if (returnPath != null) {
+                        v.path = returnPath;
+                        v.currentPathIndex = 0;
+                        v.current = returnPath.get(0);
+                        v.next = returnPath.get(1);
+                        v.destination = originalBase;
+                        v.isReturning = true; // Artık dönüyor
+                        // Silme yapma, devam etsin
+                    } else {
+                        // Yol yoksa sil
+                        vehicles.remove(v);
+                    }
+                }
+                // DURUM 3: DİĞERLERİ VEYA DÖNEN AMBULANS -> SİL
+                else {
+                    v.next = null;
+                    vehicles.remove(v);
+                }
+
             } else {
-                v.next = null;
-                vehicles.remove(v);
+                // Rota bitmedi, sonraki node'a geç
+                v.current = v.path.get(v.currentPathIndex);
+                v.next = v.path.get(v.currentPathIndex + 1);
             }
         }
     }
@@ -502,273 +563,351 @@ class SimulationEngine extends Thread {
 //--- GÖRSELLEŞTİRME PANELİ ---
 
 class SimulationPanel extends JPanel {
- private CityGraph graph;
- private SimulationEngine engine;
- 
- // Panelleri ayırıyoruz
- private JPanel controlPanel; // Alt bar
- private MapPanel mapPanel;   // Harita çizim alanı (Inner Class)
- 
- // Kontrol elemanları
- private JComboBox<Node> startBox, endBox;
- private JLabel statusLabel;
+    private CityGraph graph;
+    private SimulationEngine engine;
 
- public SimulationPanel(CityGraph graph, SimulationEngine engine) {
-     this.graph = graph;
-     this.engine = engine;
-     
-     // 1. Ana Panel Ayarları
-     setLayout(new BorderLayout()); // Ekrana yayıl
-     
-     // 2. Alt Kontrol Paneli (Control Panel) Oluşturma
-     initControlPanel();
-     
-     // 3. Harita Paneli (Map Panel) Oluşturma
-     mapPanel = new MapPanel();
-     
-     // 4. Yerleşim (Layout)
-     add(mapPanel, BorderLayout.CENTER); // Harita ortada kalan her yeri kaplar
-     add(controlPanel, BorderLayout.SOUTH); // Kontrol paneli en alta yapışır
- }
+    private JPanel controlPanel;
+    private MapPanel mapPanel;
 
- private void initControlPanel() {
-     controlPanel = new JPanel();
-     controlPanel.setBackground(new Color(50, 50, 50));
-     
-     // GridBagLayout ile öğeleri tam ortalıyoruz
-     controlPanel.setLayout(new GridBagLayout());
-     // Yükseklik 60px sabit, Genişlik esnek (0)
-     controlPanel.setPreferredSize(new Dimension(0, 60));
+    private JComboBox<Node> startBox, endBox;
+    private JLabel statusLabel;
 
-     GridBagConstraints gbc = new GridBagConstraints();
-     gbc.insets = new Insets(0, 10, 0, 10); // Elemanlar arası boşluk
+    private String currentRole = "";
 
-     startBox = new JComboBox<>();
-     endBox = new JComboBox<>();
-     statusLabel = new JLabel("Ready");
-     statusLabel.setForeground(Color.GREEN);
-     statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
+    public SimulationPanel(CityGraph graph, SimulationEngine engine) {
+        this.graph = graph;
+        this.engine = engine;
 
-     // Node'ları sıralayıp ekle
-     List<Node> sortedNodes = new ArrayList<>(graph.nodes.values());
-     sortedNodes.sort((n1, n2) -> {
+        setLayout(new BorderLayout());
 
-         // 1. KATEGORİ ÖNCELİĞİNE BAK
-         int p1 = getNodePriority(n1.name);
-         int p2 = getNodePriority(n2.name);
+        controlPanel = new JPanel();
+        controlPanel.setBackground(new Color(50, 50, 50));
+        controlPanel.setPreferredSize(new Dimension(0, 60));
 
-         if (p1 != p2) {
-             return Integer.compare(p1, p2);
-         }
+        mapPanel = new MapPanel();
 
-         // 2. KATEGORİ AYNIYSA DOĞAL SIRALAMA (Natural Sort)
-         String prefix1 = n1.name.replaceAll("[0-9]", "");
-         String prefix2 = n2.name.replaceAll("[0-9]", "");
+        add(mapPanel, BorderLayout.CENTER);
+        add(controlPanel, BorderLayout.SOUTH);
 
-         int prefixCompare = prefix1.compareTo(prefix2);
-         if (prefixCompare != 0) return prefixCompare;
+        statusLabel = new JLabel("Ready");
+        statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
+    }
 
-         String numStr1 = n1.name.replaceAll("[^0-9]", "");
-         String numStr2 = n2.name.replaceAll("[^0-9]", "");
+    public void enableControls(String role) {
+        this.currentRole = role;
+        controlPanel.setVisible(true);
 
-         if (numStr1.isEmpty() && numStr2.isEmpty()) return n1.name.compareTo(n2.name);
-         if (numStr1.isEmpty()) return -1;
-         if (numStr2.isEmpty()) return 1;
+        switch (role) {
+            case "CAR_DRIVER": initCarDriverUI(); break;
+            case "BUS_DRIVER": initBusDriverUI(); break;
+            case "EMERGENCY": initEmergencyUI(); break;
+            case "FREE_VIEW": initFreeViewUI(); break;
+            default: resetControlPanel(); break;
+        }
+        controlPanel.revalidate();
+        controlPanel.repaint();
+    }
 
-         return Integer.compare(Integer.parseInt(numStr1), Integer.parseInt(numStr2));
-     });
-     // ----------------------------------
+    private void resetControlPanel() {
+        controlPanel.removeAll();
+        controlPanel.setLayout(new GridBagLayout());
+        statusLabel.setText("Ready");
+    }
 
-     for(Node n : sortedNodes) {
-         if(n.type == NodeType.INTERSECTION) {continue;}
-         startBox.addItem(n);
-         endBox.addItem(n);
-     }
+    private void initCarDriverUI() {
+        resetControlPanel();
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(0, 10, 0, 10);
 
-     JButton goBtn = new JButton("Start Journey");
-     goBtn.setBackground(new Color(0, 150, 0));
-     goBtn.setForeground(Color.darkGray);
-     goBtn.setFocusPainted(false);
-     goBtn.setFont(new Font("Arial", Font.BOLD, 12));
+        startBox = new JComboBox<>(); endBox = new JComboBox<>();
+        fillNodeBoxes(startBox, endBox);
 
-     goBtn.addActionListener(e -> {
-         Node s = (Node) startBox.getSelectedItem();
-         Node d = (Node) endBox.getSelectedItem();
-         VehicleType type = VehicleType.CAR;
+        JButton goBtn = new JButton("Start Journey");
+        goBtn.setBackground(new Color(34, 139, 34));
+        goBtn.setForeground(Color.WHITE);
+        goBtn.setFocusPainted(false);
+        goBtn.addActionListener(e -> spawnVehicleAction(VehicleType.CAR));
 
-         if ("EMERGENCY".equals(engine.currentUserRole)) {
-             type = VehicleType.AMBULANCE;
-         }
+        statusLabel.setForeground(Color.GREEN);
+        controlPanel.add(new JLabel("Start:"), gbc);
+        controlPanel.add(startBox, gbc);
+        controlPanel.add(new JLabel("End:"), gbc);
+        controlPanel.add(endBox, gbc);
+        controlPanel.add(goBtn, gbc);
+        controlPanel.add(statusLabel, gbc);
+    }
 
-         boolean spawned = engine.spawnVehicle(s, d, type);
-         if(spawned) {
-             statusLabel.setText("Vehicle Spawned: " + s.name + " -> " + d.name);
-             statusLabel.setForeground(Color.GREEN);
-         } else {
-             statusLabel.setText("NO PATH FOUND from " + s.name + " to " + d.name);
-             statusLabel.setForeground(Color.RED);
-         }
-     });
+    private void initBusDriverUI() {
+        resetControlPanel();
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(0, 20, 0, 20);
 
-     JLabel lblS = new JLabel("Start:"); lblS.setForeground(Color.WHITE);
-     JLabel lblE = new JLabel("End:"); lblE.setForeground(Color.WHITE);
+        JLabel title = new JLabel("BUS CONTROL DASHBOARD");
+        title.setFont(new Font("Arial", Font.BOLD, 16));
+        title.setForeground(Color.CYAN);
 
-     // Elemanları ekle
-     controlPanel.add(lblS, gbc);
-     controlPanel.add(startBox, gbc);
-     controlPanel.add(lblE, gbc);
-     controlPanel.add(endBox, gbc);
-     controlPanel.add(goBtn, gbc);
-     
-     gbc.insets = new Insets(0, 30, 0, 0); // Status için ekstra boşluk
-     controlPanel.add(statusLabel, gbc);
- }
+        JLabel info = new JLabel("Magenta: Route 1 | Orange: Route 2 | Cyan: Route 3");
+        info.setForeground(Color.LIGHT_GRAY);
 
- public void enableControls(String role) {
-     // Ana panel içinde kontrol panelini görünür yapıyoruz
-     controlPanel.setVisible(true);
-     if (role.equals("BUS_DRIVER") || role.equals("FREE_VIEW")) {
-         startBox.setEnabled(false);
-         endBox.setEnabled(false);
-         statusLabel.setText("Monitoring Mode: " + role);
-     }
-     // Paneli yeniden çiz ki layout güncellensin
-     revalidate();
-     repaint();
- }
- 
-//--- SIRALAMA İÇİN YARDIMCI METOT ---
- private int getNodePriority(String name) {
-     // 1. Grup: Apartmanlar (APT...)
-     if (name.startsWith("APT")) return 1;
+        controlPanel.add(title, gbc);
+        controlPanel.add(info, gbc);
+    }
 
-     // 2. Grup: Kamu Binaları (HOSP, FIRE, POLICE)
-     if (name.equals("HOSP") || name.equals("POLICE") || name.equals("FIRE")) return 2;
+    private void initEmergencyUI() {
+        resetControlPanel();
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(0, 10, 0, 10);
 
-     // 3. Grup: Otoparklar (P1, P2...) - HOSP'tan sonra gelir
-     if (name.startsWith("P") && name.matches("P\\d+")) return 3;
+        startBox = new JComboBox<>(); endBox = new JComboBox<>();
+        fillNodeBoxes(startBox, endBox);
 
-     // Diğerleri en sona
-     return 4;
- }
- // ---------------------------------------
+        JButton emergencyBtn = new JButton("DISPATCH EMERGENCY");
+        emergencyBtn.setBackground(Color.RED);
+        emergencyBtn.setForeground(Color.WHITE);
+        emergencyBtn.setFont(new Font("Arial", Font.BOLD, 12));
+        emergencyBtn.setFocusPainted(false);
 
- // Ana repaint çağrıldığında haritayı da tetikler
- @Override
- public void repaint() {
-     super.repaint();
-     if(mapPanel != null) mapPanel.repaint();
- }
+        // Acil durum tipi seçimi için ufak bir menü (Popup) veya varsayılan Ambulans
+        // Şimdilik Ambulans gönderiyor, kodu basitleştirmek adına.
+        emergencyBtn.addActionListener(e -> {
+            // Rastgele veya seçili bir acil durum aracı gönderilebilir
+            // Burada örnek olarak Ambulans gönderiyoruz
+            spawnVehicleAction(VehicleType.AMBULANCE);
+        });
 
- // --- HARİTA ÇİZİM PANELİ (INNER CLASS) ---
- // Bu sınıf sadece haritayı çizer, butonlarla işi yoktur.
- private class MapPanel extends JPanel {
-     
-     public MapPanel() {
-         setBackground(new Color(30, 30, 30));
-     }
+        // Ekstra butonlar ekleyebilirsin: POLICE, FIRE vs.
+        JButton policeBtn = new JButton("POLICE");
+        policeBtn.setBackground(Color.BLUE); policeBtn.setForeground(Color.WHITE);
+        policeBtn.addActionListener(e -> spawnVehicleAction(VehicleType.POLICE_CAR));
 
-     @Override
-     protected void paintComponent(Graphics g) {
-         super.paintComponent(g);
-         Graphics2D g2 = (Graphics2D) g;
-         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        JButton fireBtn = new JButton("FIRE");
+        fireBtn.setBackground(Color.ORANGE); fireBtn.setForeground(Color.BLACK);
+        fireBtn.addActionListener(e -> spawnVehicleAction(VehicleType.FIRE_TRUCK));
 
-         // --- SCALE MANTIĞI ---
-         double virtualWidth = 1250.0;
-         double virtualHeight = 900.0;
+        statusLabel.setForeground(Color.RED);
+        JLabel lblS = new JLabel("Base:"); lblS.setForeground(Color.WHITE);
+        JLabel lblE = new JLabel("Target:"); lblE.setForeground(Color.WHITE);
 
-         // Artık alt barı çıkarmamıza gerek yok çünkü bu panel (MapPanel)
-         // zaten CENTER'da duruyor ve alt barın alanına karışmıyor.
-         // Kendisine ayrılan alanın tamamını kullanabilir.
-         double panelWidth = getWidth();
-         double panelHeight = getHeight();
+        controlPanel.add(lblS, gbc);
+        controlPanel.add(startBox, gbc);
+        controlPanel.add(lblE, gbc);
+        controlPanel.add(endBox, gbc);
+        controlPanel.add(emergencyBtn, gbc);
+        controlPanel.add(policeBtn, gbc); // Yeni buton
+        controlPanel.add(fireBtn, gbc);   // Yeni buton
+        controlPanel.add(statusLabel, gbc);
+    }
 
-         double scaleX = panelWidth / virtualWidth;
-         double scaleY = panelHeight / virtualHeight;
-         double scale = Math.min(scaleX, scaleY);
+    private void initFreeViewUI() {
+        resetControlPanel();
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(0, 30, 0, 30);
+        JLabel modeLabel = new JLabel("MONITORING MODE");
+        modeLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        modeLabel.setForeground(Color.YELLOW);
+        controlPanel.add(modeLabel, gbc);
+    }
 
-         double translateX = (panelWidth - (virtualWidth * scale)) / 2;
-         double translateY = (panelHeight - (virtualHeight * scale)) / 2;
+    private void spawnVehicleAction(VehicleType type) {
+        Node s = (Node) startBox.getSelectedItem();
+        Node d = (Node) endBox.getSelectedItem();
+        boolean spawned = engine.spawnVehicle(s, d, type);
+        if(spawned) statusLabel.setText("Dispatched: " + type + " -> " + d.name);
+        else statusLabel.setText("ERROR: No Path!");
+    }
 
-         g2.translate(translateX, translateY);
-         g2.scale(scale, scale);
-         
-         // --- ÇİZİM ---
-         
-         // Yollar
-         g2.setColor(new Color(80, 80, 80));
-         g2.setStroke(new BasicStroke(4));
-         for (int id : graph.adjList.keySet()) {
-             Node n1 = graph.nodes.get(id);
-             for (Edge e : graph.adjList.get(id)) {
-                 Node n2 = e.target;
-                 g2.drawLine(n1.x, n1.y, n2.x, n2.y);
-                 int midX = (n1.x + n2.x) / 2;
-                 int midY = (n1.y + n2.y) / 2;
-                 g2.fillOval(midX-2, midY-2, 4, 4);
-             }
-         }
+    private void fillNodeBoxes(JComboBox<Node> b1, JComboBox<Node> b2) {
+        List<Node> sortedNodes = new ArrayList<>(graph.nodes.values());
+        sortedNodes.sort((n1, n2) -> {
+            int p1 = getNodePriority(n1.name);
+            int p2 = getNodePriority(n2.name);
+            if (p1 != p2) return Integer.compare(p1, p2);
+            String prefix1 = n1.name.replaceAll("[0-9]", "");
+            String prefix2 = n2.name.replaceAll("[0-9]", "");
+            int prefixCompare = prefix1.compareTo(prefix2);
+            if (prefixCompare != 0) return prefixCompare;
+            String numStr1 = n1.name.replaceAll("[^0-9]", "");
+            String numStr2 = n2.name.replaceAll("[^0-9]", "");
+            if (numStr1.isEmpty() && numStr2.isEmpty()) return n1.name.compareTo(n2.name);
+            if (numStr1.isEmpty()) return -1;
+            if (numStr2.isEmpty()) return 1;
+            return Integer.compare(Integer.parseInt(numStr1), Integer.parseInt(numStr2));
+        });
+        for(Node n : sortedNodes) {
+            if(n.type == NodeType.INTERSECTION) continue;
+            b1.addItem(n); b2.addItem(n);
+        }
+    }
 
-         // Node'lar
-         for (Node n : graph.nodes.values()) {
-             switch (n.type) {
-                 case INTERSECTION:
-                     g2.setColor(new Color(0, 100, 200));
-                     g2.fillOval(n.x - 12, n.y - 12, 24, 24);
-                     if(n.trafficLight.northSouthGreen) g2.setColor(Color.GREEN); else g2.setColor(Color.RED);
-                     g2.fillOval(n.x - 4, n.y - 4, 8, 8);
-                     break;
-                 case APARTMENT:
-                     g2.setColor(new Color(200, 100, 0));
-                     if(n.id==54) g2.fillRect(n.x - 30, n.y - 8, 15, 15);
-                     else g2.fillRect(n.x - 8, n.y - 8, 15, 15);
-                     break;
-                 case PARKING:
-                     g2.setColor(new Color(200, 50, 150));
-                     g2.fillRect(n.x - 12, n.y - 8, 25, 15);
-                     break;
-                 case POLICE: case HOSPITAL: case FIRE_STATION:
-                     g2.setColor(new Color(50, 180, 50));
-                     g2.fillRect(n.x - 12, n.y - 12, 25, 25);
-                     break;
-             }
-             g2.setColor(Color.LIGHT_GRAY);
-             g2.setFont(new Font("SansSerif", Font.PLAIN, 12));
-             g2.drawString(n.name, n.x + 14, n.y + 5);
-         }
+    private int getNodePriority(String name) {
+        if (name.startsWith("APT")) return 1;
+        if (name.equals("HOSP") || name.equals("POLICE") || name.equals("FIRE")) return 2;
+        if (name.startsWith("P") && name.matches("P\\d+")) return 3;
+        return 4;
+    }
 
-         // Araçlar
-         for (Vehicle v : engine.vehicles) {
-             if (v.next == null) continue;
-             int curX = v.current.x; int curY = v.current.y;
-             int nextX = v.next.x; int nextY = v.next.y;
-             int drawX = (int) (curX + (nextX - curX) * v.progress);
-             int drawY = (int) (curY + (nextY - curY) * v.progress);
+    @Override
+    public void repaint() {
+        super.repaint();
+        if(mapPanel != null) mapPanel.repaint();
+    }
 
-             Color vehicleColor;
-             if (v.type == VehicleType.CAR) vehicleColor = Color.YELLOW;
-             else if (v.type == VehicleType.BUS) vehicleColor = Color.CYAN;
-             else vehicleColor = Color.RED;
+    private class MapPanel extends JPanel {
+        public MapPanel() { setBackground(new Color(30, 30, 30)); }
 
-             int vWidth = 20; int vHeight = 14;
-             g2.setColor(vehicleColor);
-             g2.fillRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
-             g2.setColor(Color.BLACK);
-             g2.setStroke(new BasicStroke(1));
-             g2.drawRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-             g2.setFont(new Font("Arial", Font.BOLD, 10));
-             FontMetrics fm = g2.getFontMetrics();
-             int idWidth = fm.stringWidth(v.id);
-             g2.drawString(v.id, drawX - idWidth/2, drawY - 8);
+            double virtualWidth = 1250.0;
+            double virtualHeight = 900.0;
+            double panelWidth = getWidth();
+            double panelHeight = getHeight();
+            double scale = Math.min(panelWidth / virtualWidth, panelHeight / virtualHeight);
+            double translateX = (panelWidth - (virtualWidth * scale)) / 2;
+            double translateY = (panelHeight - (virtualHeight * scale)) / 2;
 
-             g2.setFont(new Font("Arial", Font.PLAIN, 10));
-             g2.setColor(Color.WHITE);
-             String destText = "> " + v.destination.name;
-             int destWidth = fm.stringWidth(destText);
-             g2.drawString(destText, drawX - destWidth/2, drawY + vHeight + 10);
-         }
-     }
- }
+            g2.translate(translateX, translateY);
+            g2.scale(scale, scale);
+
+            // 1. Yollar
+            g2.setColor(new Color(80, 80, 80));
+            g2.setStroke(new BasicStroke(4));
+            for (int id : graph.adjList.keySet()) {
+                Node n1 = graph.nodes.get(id);
+                for (Edge e : graph.adjList.get(id)) {
+                    Node n2 = e.target;
+                    g2.drawLine(n1.x, n1.y, n2.x, n2.y);
+                    int midX = (n1.x + n2.x) / 2;
+                    int midY = (n1.y + n2.y) / 2;
+                    g2.fillOval(midX-2, midY-2, 4, 4);
+                }
+            }
+
+            // --- OTOBÜS ROTALARI (PARALEL ÇİZİM) ---
+            if ("BUS_DRIVER".equals(currentRole)) {
+                // Hangi rotaların çizildiğini takip etmek için Set, üst üste binmesin diye değil
+                // sadece her aracı bir kez çizmek için.
+                for (Vehicle v : engine.vehicles) {
+                    if (v.type == VehicleType.BUS) {
+                        int offset = 0;
+
+                        // Rota 1: Magenta (Offset -5)
+                        if (v.id.contains("1")) {
+                            g2.setColor(new Color(255, 0, 255, 180));
+                            offset = -5;
+                        }
+                        // Rota 2: Turuncu (Offset 0 - Merkez)
+                        else if (v.id.contains("2")) {
+                            g2.setColor(new Color(255, 165, 0, 180));
+                            offset = 0;
+                        }
+                        // Rota 3: Cyan (Offset +5)
+                        else if (v.id.contains("3")) {
+                            g2.setColor(new Color(0, 255, 255, 180));
+                            offset = 5;
+                        } else {
+                            g2.setColor(Color.WHITE);
+                            offset = 0;
+                        }
+
+                        g2.setStroke(new BasicStroke(3)); // Çizgileri biraz incelttim ki sığsınlar
+
+                        if (v.path != null && v.path.size() > 1) {
+                            for (int i = 0; i < v.path.size() - 1; i++) {
+                                Node n1 = v.path.get(i);
+                                Node n2 = v.path.get(i+1);
+
+                                // Yol Yatay mı Dikey mi? Ona göre offset uygula
+                                int x1 = n1.x, y1 = n1.y;
+                                int x2 = n2.x, y2 = n2.y;
+
+                                // Yataysa Y ekseninde kaydır, Dikeyse X ekseninde kaydır
+                                if (Math.abs(x1 - x2) > Math.abs(y1 - y2)) {
+                                    // Yatay Yol -> Offset Y'ye
+                                    g2.drawLine(x1, y1 + offset, x2, y2 + offset);
+                                } else {
+                                    // Dikey Yol -> Offset X'e
+                                    g2.drawLine(x1 + offset, y1, x2 + offset, y2);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Node'lar
+            for (Node n : graph.nodes.values()) {
+                switch (n.type) {
+                    case INTERSECTION:
+                        g2.setColor(new Color(0, 100, 200));
+                        g2.fillOval(n.x - 12, n.y - 12, 24, 24);
+                        if(n.trafficLight.northSouthGreen) g2.setColor(Color.GREEN); else g2.setColor(Color.RED);
+                        g2.fillOval(n.x - 4, n.y - 4, 8, 8);
+                        break;
+                    case APARTMENT:
+                        g2.setColor(new Color(200, 100, 0));
+                        g2.fillRect(n.x - 8, n.y - 8, 15, 15);
+                        break;
+                    case PARKING:
+                        g2.setColor(new Color(200, 50, 150));
+                        g2.fillRect(n.x - 12, n.y - 8, 25, 15);
+                        break;
+                    case POLICE: case HOSPITAL: case FIRE_STATION:
+                        g2.setColor(new Color(50, 180, 50));
+                        g2.fillRect(n.x - 12, n.y - 12, 25, 25);
+                        break;
+                }
+                g2.setColor(Color.LIGHT_GRAY);
+                g2.setFont(new Font("SansSerif", Font.PLAIN, 12));
+                g2.drawString(n.name, n.x - 15, n.y + 22);
+            }
+
+            // 3. Araçlar (RENKLER GÜNCELLENDİ)
+            for (Vehicle v : engine.vehicles) {
+                if (v.next == null) continue;
+                int curX = v.current.x; int curY = v.current.y;
+                int nextX = v.next.x; int nextY = v.next.y;
+                int drawX = (int) (curX + (nextX - curX) * v.progress);
+                int drawY = (int) (curY + (nextY - curY) * v.progress);
+
+                Color vehicleColor;
+                // --- İSTENEN YENİ RENKLER ---
+                switch (v.type) {
+                    case AMBULANCE: vehicleColor = Color.RED; break;
+                    case POLICE_CAR: vehicleColor = Color.BLUE; break;
+                    case FIRE_TRUCK: vehicleColor = Color.ORANGE; break;
+                    case BUS: vehicleColor = Color.CYAN; break;
+                    default: vehicleColor = Color.YELLOW; break; // CAR
+                }
+                // -----------------------------
+
+                int vWidth = 20; int vHeight = 14;
+                g2.setColor(vehicleColor);
+                g2.fillRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
+                g2.setColor(Color.BLACK);
+                g2.setStroke(new BasicStroke(1));
+                g2.drawRoundRect(drawX - vWidth/2, drawY - vHeight/2, vWidth, vHeight, 6, 6);
+
+                g2.setFont(new Font("Arial", Font.BOLD, 10));
+                FontMetrics fm = g2.getFontMetrics();
+                int idWidth = fm.stringWidth(v.id);
+                g2.drawString(v.id, drawX - idWidth/2, drawY - 8);
+
+                g2.setFont(new Font("Arial", Font.PLAIN, 10));
+                g2.setColor(Color.WHITE);
+                String destText = "> " + v.destination.name;
+
+                if(v.type == VehicleType.AMBULANCE && v.isReturning) {
+                    destText = "Returning";
+                    g2.setColor(Color.ORANGE); // Dönüş yazısı farklı renk
+                }
+
+                int destWidth = fm.stringWidth(destText);
+                g2.drawString(destText, drawX - destWidth/2, drawY + vHeight + 10);
+            }
+        }
+    }
 }
