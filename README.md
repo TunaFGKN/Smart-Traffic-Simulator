@@ -1,6 +1,5 @@
-# Smart-Traffic-Simulator
-SBTU Module Project Semester 3
 # Smart City Traffic Control System
+SBTU Module Project Semester 3
 
 A Java-based simulation application designed to model urban traffic flow, managing intersections, vehicle routing, and emergency priorities using efficient data structures and Object-Oriented Programming principles.
 
