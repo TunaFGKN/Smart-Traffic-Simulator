@@ -30,23 +30,23 @@ public class SmartCityTraffic extends JFrame {
 
     public SmartCityTraffic() {
         setTitle("Smart City Traffic Control System");
-        setExtendedState(JFrame.MAXIMIZED_BOTH); // Tam ekran
+        setExtendedState(JFrame.MAXIMIZED_BOTH); // Full Screen
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // Sistemi Başlat
+        // Start the System
         cityGraph = new CityGraph();
         engine = new SimulationEngine(cityGraph);
 
-        // GUI Ayarları
+        // GUI Settings
         cardLayout = new CardLayout();
         mainContainer = new JPanel(cardLayout);
 
-        // Panelleri Oluştur
+        // Create Panels
         JPanel loginPanel = createLoginPanel();
 
-        // SimulationPanel oluşturulurken Logout aksiyonu veriliyor
+        // 
         SimulationPanel simPanel = new SimulationPanel(cityGraph, engine, () -> {
-            engine.resetTraffic(); // Çıkışta araçları sil
+            engine.resetTraffic(); // 
             cardLayout.show(mainContainer, "LOGIN");
         });
 
@@ -55,10 +55,10 @@ public class SmartCityTraffic extends JFrame {
 
         add(mainContainer);
 
-        // Motoru panele bağla ve başlat
+        // 
         engine.setPanelToRefresh(simPanel);
-        engine.initializeTraffic(); // Trafiği ve otobüsleri hazırla
-        engine.start(); // Motoru çalıştır
+        engine.initializeTraffic(); // 
+        engine.start(); // 
     }
 
     private JPanel createLoginPanel() {
