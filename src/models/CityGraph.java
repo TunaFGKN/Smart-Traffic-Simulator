@@ -5,16 +5,43 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+// Represents the entire city layout as a graph. Manages nodes (intersections/buildings) and edges (roads).
 public class CityGraph {
-	public Map<Integer, Node> nodes = new HashMap<>();
-    public Map<Integer, List<Edge>> adjList = new HashMap<>();
+	public Map<Integer, Node> nodes = new HashMap<>(); // Maps node IDs to Node objects for quick lookup
+    public Map<Integer, List<Edge>> adjList = new HashMap<>(); // Adjacency list representing road connections: Node ID -> List of outgoing Edges
 
     public CityGraph() {
         initializeNodes();
         initializeConnections();
     }
+    
+    // Creates a node.
+    private void addNode(int id, String name, NodeType type, int x, int y) {
+        nodes.put(id, new Node(id, name, type, x, y));
+        adjList.put(id, new ArrayList<>());
+    }
 
+    // Creates a directed edge (road) between two nodes with a specific base weight (distance).
+    private void addEdge(int from, int to, double w) {
+        if (nodes.containsKey(from) && nodes.containsKey(to)) {
+            adjList.get(from).add(new Edge(nodes.get(to), w));
+        }
+    }
+
+    // Retrieves the edge object connecting two specific nodes. Useful for accessing queue data on a specific road segment.
+    public Edge getEdge(int fromId, int toId) {
+        if (!adjList.containsKey(fromId)) return null;
+        for (Edge e : adjList.get(fromId)) {
+            if (e.target.id == toId) {
+                return e;
+            }
+        }
+        return null;
+    }
+    
+    // Initialises all nodes (intersections, apartments, services) with their specific coordinates for the GUI.
     private void initializeNodes() {
+    	// --- Intersections (Nodes 1-18) ---
         addNode(1, "INTR" + 1, NodeType.INTERSECTION, 560, 360);
         addNode(2, "INTR" + 2, NodeType.INTERSECTION, 830, 360);
         addNode(3, "INTR" + 3, NodeType.INTERSECTION, 1100, 640);
@@ -34,6 +61,7 @@ public class CityGraph {
         addNode(17, "INTR" + 17, NodeType.INTERSECTION, 410, 360);
         addNode(18, "INTR" + 18, NodeType.INTERSECTION, 270, 360);
 
+        // --- Residential Buildings (Nodes 51-65) ---
         int[][] aptCoords = {
                 {100, 50}, {100, 500}, {270, 50}, {220, 360}, {270, 840},
                 {410, 50}, {460, 360}, {360, 450}, {410, 840}, {560, 50},
@@ -43,36 +71,18 @@ public class CityGraph {
             addNode(51 + i, "APT" + (i + 1), NodeType.APARTMENT, aptCoords[i][0], aptCoords[i][1]);
         }
 
+        // --- Parking Lots (Nodes 71-73) ---
         addNode(71, "P1", NodeType.PARKING, 880, 360);
         addNode(72, "P2", NodeType.PARKING, 270, 310);
         addNode(73, "P3", NodeType.PARKING, 880, 790);
 
+        // --- Emergency Services (Nodes 81-83) ---
         addNode(81, "POLICE", NodeType.POLICE, 560, 490);
         addNode(82, "HOSP", NodeType.HOSPITAL, 270, 450);
         addNode(83, "FIRE", NodeType.FIRE_STATION, 1100, 590);
     }
 
-    private void addNode(int id, String name, NodeType type, int x, int y) {
-        nodes.put(id, new Node(id, name, type, x, y));
-        adjList.put(id, new ArrayList<>());
-    }
-
-    private void addEdge(int from, int to, double w) {
-        if (nodes.containsKey(from) && nodes.containsKey(to)) {
-            adjList.get(from).add(new Edge(nodes.get(to), w));
-        }
-    }
-
-    public Edge getEdge(int fromId, int toId) {
-        if (!adjList.containsKey(fromId)) return null;
-        for (Edge e : adjList.get(fromId)) {
-            if (e.target.id == toId) {
-                return e;
-            }
-        }
-        return null;
-    }
-
+    // Defines the road network topology. Most roads are bidirectional (added as two directed edges).
     private void initializeConnections() {
         //INTERSECTION
         addEdge(1, 2, 2.7); addEdge(1, 6, 0.9); addEdge(1, 16, 1.5); addEdge(1, 62, 0.5);
