@@ -1,12 +1,11 @@
 package models;
 
+// Represents a vertex in the city graph (Intersection, Apartment, etc.) containing coordinates for GUI rendering.
 public class Node {
-	public int id;
+	public int id, x, y;
     public String name;
     public NodeType type;
-    public int x;
-	public int y;
-    public TrafficLight trafficLight;
+    public TrafficLight trafficLight; // Only initialised if this node is an INTERSECTION
 
     public Node(int id, String name, NodeType type, int x, int y) {
         this.id = id;
@@ -18,5 +17,6 @@ public class Node {
             this.trafficLight = new TrafficLight();
         }
     }
+    
     @Override public String toString() { return name; }
 }
