@@ -56,7 +56,7 @@ public class MapPanel extends JPanel {
         g2.translate(translateX, translateY);
         g2.scale(scale, scale);
 
-        // 1. YOLLAR
+        // 1. ROADS
         g2.setStroke(new BasicStroke(2));
 
         for (int id : graph.adjList.keySet()) {
@@ -77,7 +77,7 @@ public class MapPanel extends JPanel {
             }
         }
 
-        // OTOBÜS ROTALARI
+        // BUS ROUTES
         if ("BUS_DRIVER".equals(currentRole)) {
             g2.setStroke(new BasicStroke(2));
             for (Vehicle v : engine.vehicles) {
@@ -95,7 +95,7 @@ public class MapPanel extends JPanel {
             }
         }
 
-        // ACİL DURUM ROTALARI
+        // EMERGENCY ROUTES
         if ("EMERGENCY".equals(currentRole)) {
             g2.setStroke(new BasicStroke(2));
             for (Vehicle v : engine.vehicles) {
@@ -113,7 +113,7 @@ public class MapPanel extends JPanel {
             }
         }
 
-        // 2. NODE'LAR VE IŞIKLAR
+        // 2. NODES AND LIGHTS
         for (Node n : graph.nodes.values()) {
             switch (n.type) {
                 case INTERSECTION:
@@ -151,7 +151,7 @@ public class MapPanel extends JPanel {
             }
         }
 
-        // 3. ARAÇLAR
+        // 3. VEHICLES
         for (Vehicle v : engine.vehicles) {
             if (v.next == null) continue;
 
