@@ -92,6 +92,11 @@ public class SmartCityTraffic extends JFrame {
             String pass = new String(passField.getPassword());
 
             if (role.equals("Free View")) {
+                // --- DÜZELTME BURADA: Free View için de trafiği ve otobüsleri yenile ---
+                engine.resetTraffic();
+                engine.spawnBusRoute("sys");
+                // ----------------------------------------------------------------------
+
                 engine.setCurrentUser("FREE_VIEW", "guest");
                 cardLayout.show(mainContainer, "SIMULATION");
                 return;
