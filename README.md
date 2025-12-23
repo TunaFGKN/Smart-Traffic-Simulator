@@ -1,1 +1,2 @@
-SBTU Module Project Semester Three
+# Smart-Traffic-Simulator
+SBTU Module Project Semester 3
