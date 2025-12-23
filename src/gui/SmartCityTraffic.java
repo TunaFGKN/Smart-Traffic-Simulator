@@ -18,6 +18,7 @@ import javax.swing.SwingConstants;
 import models.*;
 import simulation.SimulationEngine;
 
+// The main application entry point (JFrame). Manages the transition between the Login Screen and the Simulation Screen.
 public class SmartCityTraffic extends JFrame {
     private CityGraph cityGraph;
     private SimulationEngine engine;
@@ -33,14 +34,13 @@ public class SmartCityTraffic extends JFrame {
         cityGraph = new CityGraph();
         engine = new SimulationEngine(cityGraph);
 
-        // GUI Settings
+        // Setup main container with CardLayout to switch between views
         cardLayout = new CardLayout();
         mainContainer = new JPanel(cardLayout);
-
-        // Create Panels
+        
         JPanel loginPanel = createLoginPanel();
 
-        // 
+        // Initialize SimulationPanel with a Logout callback function
         SimulationPanel simPanel = new SimulationPanel(cityGraph, engine, () -> {
             engine.resetTraffic(); // 
             cardLayout.show(mainContainer, "LOGIN");
@@ -51,7 +51,7 @@ public class SmartCityTraffic extends JFrame {
 
         add(mainContainer);
 
-        // 
+        // Link engine to UI and prepare initial data
         engine.setPanelToRefresh(simPanel);
         engine.initializeTraffic(); // 
         engine.start(); // 
@@ -96,6 +96,7 @@ public class SmartCityTraffic extends JFrame {
         gbc.gridy = 5;
         panel.add(msgLabel, gbc);
 
+        // Login Logic
         loginBtn.addActionListener(e -> {
             String role = (String) roleCombo.getSelectedItem();
             String email = emailField.getText().trim();
