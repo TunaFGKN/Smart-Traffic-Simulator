@@ -117,6 +117,11 @@ public class SmartCityTraffic extends JFrame {
             }
 
             if (valid) {
+                // --- DÜZELTME BURADA: Giriş yaparken trafiği sıfırla ve otobüsleri tekrar oluştur ---
+                engine.resetTraffic();       // Önceki kalıntıları temizle
+                engine.spawnBusRoute("sys"); // Otobüsleri yeniden başlat
+                // ----------------------------------------------------------------------------------
+
                 engine.setCurrentUser(userRole, email);
                 cardLayout.show(mainContainer, "SIMULATION");
             } else {
@@ -189,7 +194,7 @@ class Edge {
 
 class TrafficLight {
     boolean northSouthGreen = true;
-    int greenDuration = 150;
+    int greenDuration = 100;
     int timer = 0;
 
     public void update(int nsQueue, int ewQueue) {
@@ -362,6 +367,7 @@ class SimulationEngine extends Thread {
     String currentUserId = "";
     int carIdCounter = 1;
     int trafficLoopCount = 0;
+    private Thread busScheduleThread;
 
     public SimulationEngine(CityGraph graph) {
         this.graph = graph;
@@ -378,8 +384,28 @@ class SimulationEngine extends Thread {
     }
 
     public void resetTraffic() {
+        // 1. Sayaç Thread'ini durdur
+        if (busScheduleThread != null && busScheduleThread.isAlive()) {
+            busScheduleThread.interrupt();
+        }
+
+        // 2. Araç listesini temizle
         vehicles.clear();
         carIdCounter = 1;
+
+        // 3. --- KRİTİK DÜZELTME BURADA ---
+        // Haritadaki tüm yolları gezip kuyrukları temizliyoruz.
+        // Bunu yapmazsak "hayalet araçlar" trafiği kilitler.
+        if (graph != null && graph.adjList != null) {
+            for (List<Edge> edges : graph.adjList.values()) {
+                for (Edge e : edges) {
+                    if (e.vehicleQueue != null) {
+                        e.vehicleQueue.clear();
+                    }
+                }
+            }
+        }
+        // ---------------------------------
     }
 
     public List<Node> findPath(Node start, Node end) {
@@ -456,7 +482,7 @@ class SimulationEngine extends Thread {
         return false;
     }
 
-    private void spawnBusRoute(String driverId) {
+    public void spawnBusRoute(String driverId) {
         int[] ids1 = {71, 2, 16, 15, 14, 17, 7, 8, 9, 4, 3, 4, 2, 71};
         int[] ids2 = {72, 18, 17, 14, 15, 16, 1, 6, 5, 4, 9, 8, 7, 17, 18, 72};
         int[] ids3 = {73, 9, 8, 10, 82, 11, 12, 13, 14, 17, 7, 8, 9, 73};
@@ -470,22 +496,36 @@ class SimulationEngine extends Thread {
         createBusAndAddToQueue("BUS-1B", route2);
         createBusAndAddToQueue("BUS-1C", route3);
 
-        new Thread(() -> {
+
+
+        busScheduleThread = new Thread(() -> {
             try {
                 // 2. Grup için 25 saniye bekle
                 Thread.sleep(25000);
+
+                // Eğer uyurken resetTraffic çağrıldıysa buraya düşeriz, ama yine de kontrol edelim
+                if (Thread.currentThread().isInterrupted()) return;
+
                 createBusAndAddToQueue("BUS-2A", route1);
                 createBusAndAddToQueue("BUS-2B", route2);
                 createBusAndAddToQueue("BUS-2C", route3);
 
-                // 3. Grup için bir 25 saniye daha bekle (Toplam 50. saniye)
+                // 3. Grup için bir 25 saniye daha bekle
                 Thread.sleep(25000);
+
+                if (Thread.currentThread().isInterrupted()) return;
+
                 createBusAndAddToQueue("BUS-3A", route1);
                 createBusAndAddToQueue("BUS-3B", route2);
                 createBusAndAddToQueue("BUS-3C", route3);
 
-            } catch (InterruptedException e) { e.printStackTrace(); }
-        }).start();
+            } catch (InterruptedException e) {
+                // Thread.sleep esnasında interrupt gelirse buraya düşer.
+                // Hiçbir şey yapma, sadece thread'in bitmesine izin ver.
+                // System.out.println("Otobüs seferleri iptal edildi.");
+            }
+        });
+        busScheduleThread.start();
     }
 
     private void createBusAndAddToQueue(String id, List<Node> route) {
@@ -567,13 +607,33 @@ class SimulationEngine extends Thread {
         }
     }
 
+    // SimulationEngine sınıfının içindeki bu metodu bul ve bununla değiştir:
     private void handleEndOfPath(Vehicle v) {
         boolean isEmergency = (v.type == VehicleType.AMBULANCE || v.type == VehicleType.POLICE_CAR || v.type == VehicleType.FIRE_TRUCK);
 
+        // --- DÜZELTME BURADA: Otobüs ise silme, başa sar ---
         if (v.type == VehicleType.BUS) {
-            // Otobüs seferini tamamladı, araç siliniyor (Program bitişi)
-            vehicles.remove(v);
+            // 1. İndeksi sıfırla
+            v.currentPathIndex = 0;
+
+            // 2. Konumu başlangıç noktasına çek
+            v.current = v.path.get(0);
+            v.next = v.path.get(1);
+            v.progress = 0;
+
+            // 3. Kenar (Edge) kuyruğuna tekrar ekle (Trafik mantığı için şart)
+            Edge newEdge = graph.getEdge(v.current.id, v.next.id);
+            if (newEdge != null) {
+                v.currentEdgeObj = newEdge;
+                v.entryTime = System.nanoTime();
+                newEdge.vehicleQueue.add(v);
+            }
+
+            // Return diyerek silme işlemini engelliyoruz
+            return;
         }
+        // ---------------------------------------------------
+
         else if (isEmergency && !v.isReturning) {
             Node currentLoc = v.path.get(v.path.size()-1);
             Node base = v.path.get(0);
@@ -642,7 +702,7 @@ class SimulationEngine extends Thread {
         new Thread(() -> {
             while (true) {
                 try {
-                    Thread.sleep(2000);
+                    Thread.sleep(1000);
                     trafficLoopCount++;
 
                     if (!graph.nodes.isEmpty()) {
@@ -1021,8 +1081,12 @@ class SimulationPanel extends JPanel {
             // 3. ARAÇLAR
             for (Vehicle v : engine.vehicles) {
                 if (v.next == null) continue;
-                // Herhangi bir filtre koymuyoruz, tüm araçlar herkes tarafından görülsün.
-                // Sadece Bus Driver isek rotalar görünür, ama otobüsler hep görünür.
+
+                // --- DÜZELTME BURADA: Eğer BusDriver ise ve araç otobüs değilse ÇİZME ---
+                if ("BUS_DRIVER".equals(currentRole) && v.type != VehicleType.BUS) {
+                    continue;
+                }
+                // -----------------------------------------------------------------------
 
                 double specificOffset = BASE_LANE_OFFSET;
                 if (v.type == VehicleType.BUS) {
