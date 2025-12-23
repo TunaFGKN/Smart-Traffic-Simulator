@@ -17,6 +17,7 @@ import javax.swing.JPanel;
 import models.*;
 import simulation.SimulationEngine;
 
+// The main container for the simulation view. It holds the MapPanel (center) and the ControlPanel (bottom). Dynamically updates the control panel based on the user's role.
 public class SimulationPanel extends JPanel {
     public CityGraph graph;
     private SimulationEngine engine;
@@ -60,6 +61,7 @@ public class SimulationPanel extends JPanel {
         controlPanel.add(logoutBtn, gbc);
     }
 
+    // Configures the control panel UI based on the logged-in user role. Also informs the MapPanel of the role change to adjust rendering filters.
     public void enableControls(String role) {
         controlPanel.setVisible(true);
         
@@ -84,6 +86,7 @@ public class SimulationPanel extends JPanel {
         statusLabel.setText("Ready");
     }
 
+    // Initializes the control panel for Personal Car Drivers. Allows selection of start and end nodes to spawn a car.
     private void initCarDriverPanel() {
         resetControlPanel();
         GridBagConstraints gbc = new GridBagConstraints();
@@ -116,6 +119,7 @@ public class SimulationPanel extends JPanel {
         addLogoutButton(gbc);
     }
 
+    // Initializes the control panel for Bus Drivers. Displays only informational text about routes.
     private void initBusDriverPanel() {
         resetControlPanel();
         GridBagConstraints gbc = new GridBagConstraints();
@@ -133,6 +137,7 @@ public class SimulationPanel extends JPanel {
         addLogoutButton(gbc);
     }
 
+    // Initializes the control panel for Emergency Services. Allows spawning specific emergency vehicles.
     private void initEmergencyPanel() {
         resetControlPanel();
         GridBagConstraints gbc = new GridBagConstraints();
@@ -174,6 +179,7 @@ public class SimulationPanel extends JPanel {
         addLogoutButton(gbc);
     }
 
+    // Initializes the control panel for Free View. Only displays monitoring status.
     private void initFreeViewPanel() {
         resetControlPanel();
         GridBagConstraints gbc = new GridBagConstraints();
@@ -229,12 +235,11 @@ public class SimulationPanel extends JPanel {
         if(mapPanel != null) mapPanel.repaint();
     }
 
+    // Try deleting this:
     public Color getBusColor(String vehicleId) {
         if (vehicleId.endsWith("A")) return new Color(255, 0, 255);
         if (vehicleId.endsWith("B")) return new Color(255, 140, 0);
         if (vehicleId.endsWith("C")) return new Color(0, 255, 255);
         return Color.YELLOW;
-    }
-
-    
+    }    
 }

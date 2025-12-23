@@ -11,10 +11,10 @@ import javax.swing.JPanel;
 import models.*;
 import simulation.SimulationEngine;
 
+// Handles the graphical rendering of the simulation. It draws the map, roads, nodes, traffic lights, and vehicles. Supports zoom/scaling and role-based view filtering.
 public class MapPanel extends JPanel {
-	
-    private final int BASE_LANE_OFFSET = 7;
     
+	private final int BASE_LANE_OFFSET = 7; // Offset for drawing vehicles in lanes (to avoid overlap on bidirectional roads)
     private CityGraph graph;
     private SimulationEngine engine;
     private String currentRole = "";
@@ -25,6 +25,7 @@ public class MapPanel extends JPanel {
     	setBackground(new Color(30, 30, 30)); 
     }
     
+    // Updates the current user role to apply view filters (e.g., Bus Driver mode).
     public void setCurrentRole(String role) {
         this.currentRole = role;
         repaint();
@@ -43,6 +44,7 @@ public class MapPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
+        // Centers and scales the map to fit the current window size while maintaining aspect ratio.
         double virtualWidth = 1250.0;
         double virtualHeight = 900.0;
         double panelWidth = getWidth();
@@ -201,6 +203,7 @@ public class MapPanel extends JPanel {
         }
     }
 
+    // Helper to draw the full path line for a vehicle
     private void drawPath(Graphics2D g2, Vehicle v, double offset) {
         if (v.path != null && v.path.size() > 1) {
             for (int i = 0; i < v.path.size() - 1; i++) {
@@ -213,6 +216,7 @@ public class MapPanel extends JPanel {
         }
     }
 
+    // Calculates perpendicular offset vector for lane positioning
     private double[] calculateOffset(int x1, int y1, int x2, int y2, double offsetAmount) {
         double dx = x2 - x1;
         double dy = y2 - y1;
