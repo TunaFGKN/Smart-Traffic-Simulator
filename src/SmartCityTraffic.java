@@ -30,7 +30,6 @@ public class SmartCityTraffic extends JFrame {
         JPanel loginPanel = createLoginPanel();
 
         // SimulationPanel oluşturulurken Logout aksiyonu veriliyor
-        // Logout yapıldığında trafiği temizle
         SimulationPanel simPanel = new SimulationPanel(cityGraph, engine, () -> {
             engine.resetTraffic(); // Çıkışta araçları sil
             cardLayout.show(mainContainer, "LOGIN");
@@ -92,11 +91,8 @@ public class SmartCityTraffic extends JFrame {
             String pass = new String(passField.getPassword());
 
             if (role.equals("Free View")) {
-                // --- DÜZELTME BURADA: Free View için de trafiği ve otobüsleri yenile ---
                 engine.resetTraffic();
                 engine.spawnBusRoute("sys");
-                // ----------------------------------------------------------------------
-
                 engine.setCurrentUser("FREE_VIEW", "guest");
                 cardLayout.show(mainContainer, "SIMULATION");
                 return;
@@ -122,11 +118,8 @@ public class SmartCityTraffic extends JFrame {
             }
 
             if (valid) {
-                // --- DÜZELTME BURADA: Giriş yaparken trafiği sıfırla ve otobüsleri tekrar oluştur ---
-                engine.resetTraffic();       // Önceki kalıntıları temizle
-                engine.spawnBusRoute("sys"); // Otobüsleri yeniden başlat
-                // ----------------------------------------------------------------------------------
-
+                engine.resetTraffic();
+                engine.spawnBusRoute("sys");
                 engine.setCurrentUser(userRole, email);
                 cardLayout.show(mainContainer, "SIMULATION");
             } else {
@@ -199,12 +192,31 @@ class Edge {
 
 class TrafficLight {
     boolean northSouthGreen = true;
-    int greenDuration = 100;
     int timer = 0;
+
+    private final int MIN_DURATION = 40;
+    private final int MAX_DURATION = 250;
+    private final int DEFAULT_DURATION = 100;
 
     public void update(int nsQueue, int ewQueue) {
         timer++;
-        if (timer > greenDuration) {
+        int currentTargetDuration = DEFAULT_DURATION;
+
+        if (northSouthGreen) {
+            if (nsQueue == 0 && ewQueue > 0) {
+                currentTargetDuration = MIN_DURATION;
+            } else if (nsQueue > ewQueue + 2) {
+                currentTargetDuration = MAX_DURATION;
+            }
+        } else {
+            if (ewQueue == 0 && nsQueue > 0) {
+                currentTargetDuration = MIN_DURATION;
+            } else if (ewQueue > nsQueue + 2) {
+                currentTargetDuration = MAX_DURATION;
+            }
+        }
+
+        if (timer > currentTargetDuration) {
             northSouthGreen = !northSouthGreen;
             timer = 0;
         }
@@ -389,18 +401,13 @@ class SimulationEngine extends Thread {
     }
 
     public void resetTraffic() {
-        // 1. Sayaç Thread'ini durdur
         if (busScheduleThread != null && busScheduleThread.isAlive()) {
             busScheduleThread.interrupt();
         }
 
-        // 2. Araç listesini temizle
         vehicles.clear();
         carIdCounter = 1;
 
-        // 3. --- KRİTİK DÜZELTME BURADA ---
-        // Haritadaki tüm yolları gezip kuyrukları temizliyoruz.
-        // Bunu yapmazsak "hayalet araçlar" trafiği kilitler.
         if (graph != null && graph.adjList != null) {
             for (List<Edge> edges : graph.adjList.values()) {
                 for (Edge e : edges) {
@@ -410,7 +417,6 @@ class SimulationEngine extends Thread {
                 }
             }
         }
-        // ---------------------------------
     }
 
     public List<Node> findPath(Node start, Node end) {
@@ -496,38 +502,25 @@ class SimulationEngine extends Thread {
         List<Node> route2 = new ArrayList<>(); for (int id : ids2) route2.add(graph.nodes.get(id));
         List<Node> route3 = new ArrayList<>(); for (int id : ids3) route3.add(graph.nodes.get(id));
 
-        // 1. Grup Otobüsler (Hemen Başlar)
         createBusAndAddToQueue("BUS-1A", route1);
         createBusAndAddToQueue("BUS-1B", route2);
         createBusAndAddToQueue("BUS-1C", route3);
 
-
-
         busScheduleThread = new Thread(() -> {
             try {
-                // 2. Grup için 25 saniye bekle
                 Thread.sleep(25000);
-
-                // Eğer uyurken resetTraffic çağrıldıysa buraya düşeriz, ama yine de kontrol edelim
                 if (Thread.currentThread().isInterrupted()) return;
-
                 createBusAndAddToQueue("BUS-2A", route1);
                 createBusAndAddToQueue("BUS-2B", route2);
                 createBusAndAddToQueue("BUS-2C", route3);
 
-                // 3. Grup için bir 25 saniye daha bekle
                 Thread.sleep(25000);
-
                 if (Thread.currentThread().isInterrupted()) return;
-
                 createBusAndAddToQueue("BUS-3A", route1);
                 createBusAndAddToQueue("BUS-3B", route2);
                 createBusAndAddToQueue("BUS-3C", route3);
 
             } catch (InterruptedException e) {
-                // Thread.sleep esnasında interrupt gelirse buraya düşer.
-                // Hiçbir şey yapma, sadece thread'in bitmesine izin ver.
-                // System.out.println("Otobüs seferleri iptal edildi.");
             }
         });
         busScheduleThread.start();
@@ -562,10 +555,19 @@ class SimulationEngine extends Thread {
         }
     }
 
+    // --- DÜZELTİLEN METOT BURADA ---
     private void moveVehicle(Vehicle v) {
         if (v.path.isEmpty() || v.next == null) return;
 
-        if (v.progress > 0.95 && v.next.type == NodeType.INTERSECTION) {
+        // 1. Önce bu tur ne kadar ilerleyeceğini hesapla
+        double dx = v.next.x - v.current.x;
+        double dy = v.next.y - v.current.y;
+        double distance = Math.sqrt(dx * dx + dy * dy);
+        double normalizedSpeed = (v.type.speed * 300.0) / Math.max(distance, 1.0);
+
+        // 2. KONTROL: Eğer bir sonraki adımda varış noktasına (Kavşağa) ulaşacaksam
+        // Bu "look-ahead" (ileri bakma) mantığı frame atlamalarını önler.
+        if (v.progress + normalizedSpeed >= 1.0 && v.next.type == NodeType.INTERSECTION) {
             TrafficLight light = v.next.trafficLight;
             boolean lightGreen = light.canPass(v.current, v.next);
 
@@ -578,17 +580,14 @@ class SimulationEngine extends Thread {
             boolean isEmergency = (v.type.priority <= 3);
 
             if (isEmergency) {
-                if (!amIPriority) return;
+                if (!amIPriority) return; // Acil durum aracı sadece önü tıkalıysa durur
             } else {
+                // Normal araç: Işık Kırmızıysa VEYA Önümde araç varsa DUR
                 if (!lightGreen || !amIPriority) return;
             }
         }
 
-        double dx = v.next.x - v.current.x;
-        double dy = v.next.y - v.current.y;
-        double distance = Math.sqrt(dx * dx + dy * dy);
-        double normalizedSpeed = (v.type.speed * 300.0) / Math.max(distance, 1.0);
-
+        // 3. İlerle
         v.progress += normalizedSpeed;
 
         if (v.progress >= 1.0) {
@@ -612,33 +611,23 @@ class SimulationEngine extends Thread {
         }
     }
 
-    // SimulationEngine sınıfının içindeki bu metodu bul ve bununla değiştir:
     private void handleEndOfPath(Vehicle v) {
         boolean isEmergency = (v.type == VehicleType.AMBULANCE || v.type == VehicleType.POLICE_CAR || v.type == VehicleType.FIRE_TRUCK);
 
-        // --- DÜZELTME BURADA: Otobüs ise silme, başa sar ---
         if (v.type == VehicleType.BUS) {
-            // 1. İndeksi sıfırla
             v.currentPathIndex = 0;
-
-            // 2. Konumu başlangıç noktasına çek
             v.current = v.path.get(0);
             v.next = v.path.get(1);
             v.progress = 0;
 
-            // 3. Kenar (Edge) kuyruğuna tekrar ekle (Trafik mantığı için şart)
             Edge newEdge = graph.getEdge(v.current.id, v.next.id);
             if (newEdge != null) {
                 v.currentEdgeObj = newEdge;
                 v.entryTime = System.nanoTime();
                 newEdge.vehicleQueue.add(v);
             }
-
-            // Return diyerek silme işlemini engelliyoruz
             return;
         }
-        // ---------------------------------------------------
-
         else if (isEmergency && !v.isReturning) {
             Node currentLoc = v.path.get(v.path.size()-1);
             Node base = v.path.get(0);
@@ -669,8 +658,24 @@ class SimulationEngine extends Thread {
     private void updateLights() {
         for (Node n : graph.nodes.values()) {
             if (n.type == NodeType.INTERSECTION) {
-                int nsLoad = (int)(Math.random() * 15);
-                int ewLoad = (int)(Math.random() * 15);
+                int nsLoad = 0;
+                int ewLoad = 0;
+
+                for (Map.Entry<Integer, List<Edge>> entry : graph.adjList.entrySet()) {
+                    Node fromNode = graph.nodes.get(entry.getKey());
+                    List<Edge> edges = entry.getValue();
+
+                    for (Edge e : edges) {
+                        if (e.target == n) {
+                            boolean isVertical = Math.abs(fromNode.y - n.y) > Math.abs(fromNode.x - n.x);
+                            if (isVertical) {
+                                nsLoad += e.vehicleQueue.size();
+                            } else {
+                                ewLoad += e.vehicleQueue.size();
+                            }
+                        }
+                    }
+                }
                 n.trafficLight.update(nsLoad, ewLoad);
             }
         }
@@ -697,11 +702,7 @@ class SimulationEngine extends Thread {
         Node endNode_F = graph.nodes.get(R.nextInt(15) + 51);
         if (startNode_F != endNode_F) spawnVehicle(startNode_F, endNode_F, VehicleType.FIRE_TRUCK);
 
-        // --- DÜZELTME: OTOBÜSLERİ RASTGELE DAĞITMADAN SONRA BAŞLATIYORUZ ---
-        // Rastgele araçları rotalarına dağıt (Böylece harita başında boş kalmaz)
         scatterVehiclesOnPath();
-
-        // Şimdi otobüsleri başlat (Böylece otobüsler durağından başlar, dağılmaz)
         spawnBusRoute("SYSTEM_AUTO");
 
         new Thread(() -> {
@@ -731,7 +732,6 @@ class SimulationEngine extends Thread {
 
     private void scatterVehiclesOnPath() {
         for (Vehicle v : vehicles) {
-            // --- DÜZELTME: OTOBÜSLERİ DAĞITMA İŞLEMİNDEN MUAF TUTUYORUZ ---
             if (v.type == VehicleType.BUS) continue;
 
             if (v.path != null && v.path.size() > 2) {
@@ -957,17 +957,13 @@ class SimulationPanel extends JPanel {
         if(mapPanel != null) mapPanel.repaint();
     }
 
-    // --- RENK SEÇİMİ (KESİN AYRIM - endsWith ile çözüm) ---
     private Color getBusColor(String vehicleId) {
-        // "BUS-1A" -> A ile bitiyor
-        if (vehicleId.endsWith("A")) return new Color(255, 0, 255); // Magenta (Tip A)
-        if (vehicleId.endsWith("B")) return new Color(255, 140, 0); // Dark Orange (Tip B)
-        if (vehicleId.endsWith("C")) return new Color(0, 255, 255); // Cyan (Tip C)
+        if (vehicleId.endsWith("A")) return new Color(255, 0, 255);
+        if (vehicleId.endsWith("B")) return new Color(255, 140, 0);
+        if (vehicleId.endsWith("C")) return new Color(0, 255, 255);
         return Color.YELLOW;
     }
 
-    // --- HARİTA PANELİ ---
-    // --- HARİTA PANELİ ---
     private class MapPanel extends JPanel {
         private final int BASE_LANE_OFFSET = 7;
 
@@ -997,7 +993,6 @@ class SimulationPanel extends JPanel {
                 Node n1 = graph.nodes.get(id);
                 for (Edge e : graph.adjList.get(id)) {
                     Node n2 = e.target;
-                    // Normal yollar
                     double[] offsets = calculateOffset(n1.x, n1.y, n2.x, n2.y, BASE_LANE_OFFSET);
                     int x1 = (int) (n1.x + offsets[0]);
                     int y1 = (int) (n1.y + offsets[1]);
@@ -1012,7 +1007,7 @@ class SimulationPanel extends JPanel {
                 }
             }
 
-            // --- OTOBÜS ROTALARI (YAN YANA ÇİZİM) ---
+            // OTOBÜS ROTALARI
             if ("BUS_DRIVER".equals(currentRole)) {
                 g2.setStroke(new BasicStroke(2));
                 for (Vehicle v : engine.vehicles) {
@@ -1030,17 +1025,14 @@ class SimulationPanel extends JPanel {
                 }
             }
 
-            // --- ACİL DURUM ARAÇLARI ROTALARI ---
+            // ACİL DURUM ROTALARI
             if ("EMERGENCY".equals(currentRole)) {
                 g2.setStroke(new BasicStroke(2));
                 for (Vehicle v : engine.vehicles) {
                     if (v.type == VehicleType.AMBULANCE || v.type == VehicleType.POLICE_CAR || v.type == VehicleType.FIRE_TRUCK) {
-
-                        // --- DÜZELTME BURADA: Eğer araç geri dönüyorsa yolunu ÇİZME ---
                         if (v.isReturning && v.type != VehicleType.AMBULANCE) {
                             continue;
                         }
-                        // -------------------------------------------------------------
 
                         if (v.type == VehicleType.AMBULANCE) g2.setColor(new Color(255, 0, 0, 180));
                         else if (v.type == VehicleType.POLICE_CAR) g2.setColor(new Color(0, 0, 255, 180));
@@ -1141,7 +1133,6 @@ class SimulationPanel extends JPanel {
             }
         }
 
-        // Kodu temiz tutmak için çizim işini metoda aldım
         private void drawPath(Graphics2D g2, Vehicle v, double offset) {
             if (v.path != null && v.path.size() > 1) {
                 for (int i = 0; i < v.path.size() - 1; i++) {
