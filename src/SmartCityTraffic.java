@@ -962,6 +962,7 @@ class SimulationPanel extends JPanel {
     }
 
     // --- HARİTA PANELİ ---
+    // --- HARİTA PANELİ ---
     private class MapPanel extends JPanel {
         private final int BASE_LANE_OFFSET = 7;
 
@@ -1014,28 +1015,33 @@ class SimulationPanel extends JPanel {
                         Color busColor = getBusColor(v.id);
                         g2.setColor(new Color(busColor.getRed(), busColor.getGreen(), busColor.getBlue(), 200));
 
-                        // Şerit Kaydırma (Offset): endsWith kullanarak
                         double specificOffset;
-                        if (v.id.endsWith("A")) {
-                            specificOffset = 6.0;
-                        } else if (v.id.endsWith("B")) {
-                            specificOffset = 10.0;
-                        } else if (v.id.endsWith("C")) {
-                            specificOffset = 14.0;
-                        } else {
-                            specificOffset = 14.0;
-                        }
+                        if (v.id.endsWith("A")) specificOffset = 6.0;
+                        else if (v.id.endsWith("B")) specificOffset = 10.0;
+                        else specificOffset = 14.0;
 
-                        if (v.path != null && v.path.size() > 1) {
-                            for (int i = 0; i < v.path.size() - 1; i++) {
-                                Node n1 = v.path.get(i);
-                                Node n2 = v.path.get(i+1);
+                        drawPath(g2, v, specificOffset);
+                    }
+                }
+            }
 
-                                double[] offsets = calculateOffset(n1.x, n1.y, n2.x, n2.y, specificOffset);
-                                g2.drawLine((int)(n1.x + offsets[0]), (int)(n1.y + offsets[1]),
-                                        (int)(n2.x + offsets[0]), (int)(n2.y + offsets[1]));
-                            }
+            // --- ACİL DURUM ARAÇLARI ROTALARI ---
+            if ("EMERGENCY".equals(currentRole)) {
+                g2.setStroke(new BasicStroke(2));
+                for (Vehicle v : engine.vehicles) {
+                    if (v.type == VehicleType.AMBULANCE || v.type == VehicleType.POLICE_CAR || v.type == VehicleType.FIRE_TRUCK) {
+
+                        // --- DÜZELTME BURADA: Eğer araç geri dönüyorsa yolunu ÇİZME ---
+                        if (v.isReturning && v.type != VehicleType.AMBULANCE) {
+                            continue;
                         }
+                        // -------------------------------------------------------------
+
+                        if (v.type == VehicleType.AMBULANCE) g2.setColor(new Color(255, 0, 0, 180));
+                        else if (v.type == VehicleType.POLICE_CAR) g2.setColor(new Color(0, 0, 255, 180));
+                        else g2.setColor(new Color(255, 165, 0, 180));
+
+                        drawPath(g2, v, 4.0);
                     }
                 }
             }
@@ -1082,17 +1088,14 @@ class SimulationPanel extends JPanel {
             for (Vehicle v : engine.vehicles) {
                 if (v.next == null) continue;
 
-                // --- DÜZELTME BURADA: Eğer BusDriver ise ve araç otobüs değilse ÇİZME ---
                 if ("BUS_DRIVER".equals(currentRole) && v.type != VehicleType.BUS) {
                     continue;
                 }
-                // -----------------------------------------------------------------------
 
                 double specificOffset = BASE_LANE_OFFSET;
                 if (v.type == VehicleType.BUS) {
                     if (v.id.endsWith("A")) specificOffset = 6.0;
                     else if (v.id.endsWith("B")) specificOffset = 10.0;
-                    else if (v.id.endsWith("C")) specificOffset = 14.0;
                     else specificOffset = 14.0;
                 }
 
@@ -1130,6 +1133,19 @@ class SimulationPanel extends JPanel {
                 g2.drawString(v.id, -10, -8);
 
                 g2.setTransform(old);
+            }
+        }
+
+        // Kodu temiz tutmak için çizim işini metoda aldım
+        private void drawPath(Graphics2D g2, Vehicle v, double offset) {
+            if (v.path != null && v.path.size() > 1) {
+                for (int i = 0; i < v.path.size() - 1; i++) {
+                    Node n1 = v.path.get(i);
+                    Node n2 = v.path.get(i+1);
+                    double[] offsets = calculateOffset(n1.x, n1.y, n2.x, n2.y, offset);
+                    g2.drawLine((int)(n1.x + offsets[0]), (int)(n1.y + offsets[1]),
+                            (int)(n2.x + offsets[0]), (int)(n2.y + offsets[1]));
+                }
             }
         }
 
